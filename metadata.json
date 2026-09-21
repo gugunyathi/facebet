@@ -1,0 +1,11 @@
+{
+  "name": "CHAIN GANG",
+  "description": "Hybrid Web3 game with live P2P streaming and Base/ARC lottery ticket entries",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
