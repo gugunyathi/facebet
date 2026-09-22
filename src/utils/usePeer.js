@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import useWebSocket, { ReadyState } from "react-use-websocket";
+import useWebSocketRaw, { ReadyState } from "react-use-websocket";
+
+const useWebSocket = typeof useWebSocketRaw === "function"
+  ? useWebSocketRaw
+  : (useWebSocketRaw?.default || useWebSocketRaw);
 import { log } from "@/utils/helpers";
 import { HEARTBEAT, MESSAGE_EVENTS, WS_URL, peer } from "@/utils/constants";
 import { addMessage, clearMessages } from "@/features/messaging/messagingSlice";

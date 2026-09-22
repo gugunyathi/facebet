@@ -2,6 +2,12 @@ import express, { Request, Response } from "express";
 import http from "http";
 import path from "path";
 import crypto from "crypto";
+
+try {
+  if (typeof (process as any).loadEnvFile === "function") {
+    (process as any).loadEnvFile();
+  }
+} catch {}
 import mongoose from "mongoose";
 import { createPublicClient, http as viemHttp } from "viem";
 import { base } from "viem/chains";
@@ -44,8 +50,9 @@ let isMongoConnected = false;
 if (MONGODB_URI && (MONGODB_URI.startsWith("mongodb://") || MONGODB_URI.startsWith("mongodb+srv://"))) {
   mongoose
     .connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 3000,
-      connectTimeoutMS: 3000,
+      dbName: "facebet",
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
     })
     .then(() => {
       isMongoConnected = true;
