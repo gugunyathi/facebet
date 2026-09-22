@@ -17,21 +17,40 @@ import {
 } from "react-icons/md";
 
 export function App() {
-  const [userSession, setUserSession] = useState<UserSessionData | null>(null);
+  const [userSession, setUserSession] = useState<UserSessionData | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("facebet_session");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activePage, setActivePage] = useState<"arena" | "about" | "settings" | "timeline">("arena");
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
 
   const handleAuthSuccess = (session: UserSessionData) => {
     setUserSession(session);
+    try {
+      localStorage.setItem("facebet_session", JSON.stringify(session));
+    } catch (e) {
+      console.warn("Could not save session to localStorage:", e);
+    }
     setActivePage("arena");
   };
 
   const handleBuyTickets = (newTickets: number) => {
     if (userSession) {
-      setUserSession({
+      const updated = {
         ...userSession,
         availableTickets: newTickets,
-      });
+      };
+      setUserSession(updated);
+      try {
+        localStorage.setItem("facebet_session", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Could not update session tickets in localStorage:", e);
+      }
     }
   };
 
@@ -54,7 +73,7 @@ export function App() {
               </div>
               <div className="min-w-0">
                 <h1 className="font-extrabold text-xs sm:text-lg md:text-xl tracking-wide bg-gradient-to-r from-yellow-300 via-amber-400 to-purple-400 bg-clip-text text-transparent truncate">
-                  CHAIN GANG
+                  FACE BET
                 </h1>
                 <p className="text-[10px] sm:text-xs text-gray-300 font-medium hidden md:block">
                   Hybrid Web3 Game • Base & ARC Networks

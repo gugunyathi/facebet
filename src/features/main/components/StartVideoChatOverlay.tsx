@@ -27,7 +27,7 @@ export const StartVideoChatOverlay: React.FC<StartVideoChatOverlayProps> = ({
     <div className="flex h-full items-center justify-center flex-col p-3 sm:p-4 w-full max-w-sm sm:max-w-md mx-auto text-center pointer-events-auto">
       <div className="bg-[#110c38]/90 border border-[#644af1]/50 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-md space-y-3 sm:space-y-4 w-full">
         <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
-          CHAIN GANG Live Arena
+          FACE BET Live Arena
         </span>
 
         <p className="text-gray-200 text-xs">

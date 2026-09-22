@@ -34,7 +34,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({
                 face-to-face
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-yellow-300 via-amber-400 to-purple-300 bg-clip-text text-transparent">
-                CHAIN GANG Arena
+                FACE BET Arena
               </h1>
             </div>
           </div>

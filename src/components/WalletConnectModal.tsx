@@ -41,7 +41,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
           <div>
             <h2 className="text-lg font-extrabold text-white">Connect Web3 Wallet</h2>
             <p className="text-xs text-amber-300 font-semibold">
-              CHAIN GANG • Base & ARC Network
+              FACE BET • Base & ARC Network
             </p>
           </div>
         </div>

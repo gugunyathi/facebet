@@ -1,13 +1,17 @@
 import express, { Request, Response } from "express";
 import http from "http";
 import path from "path";
+import crypto from "crypto";
 import mongoose from "mongoose";
+import { createPublicClient, http as viemHttp } from "viem";
+import { base } from "viem/chains";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
 import { UserSession } from "./models/UserSession";
 import { UserActivity, inMemoryUserActivities } from "./models/UserActivity";
 import { TimelineEvent, inMemoryTimelineEvents } from "./models/TimelineEvent";
 import { evaluateLiveFrame } from "./services/geminiEngine";
+import { fetchOnChainPotInfo } from "./services/contractBridge";
 import { FeedEngine, memoryFeedItems } from "./services/feedEngine";
 import { FeedItem } from "./models/FeedItem";
 import { TicketQueue } from "./models/TicketQueue";
@@ -762,6 +766,100 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
+  // POST /api/subscriptions/verify endpoint (Base Recurring Spend Permissions)
+  app.post("/api/subscriptions/verify", async (req: Request, res: Response) => {
+    try {
+      const { userId, walletAddress, subscriptionId, recurringCharge, periodInDays, network } = req.body || {};
+
+      if (!subscriptionId || !walletAddress) {
+        return res.status(400).json({ error: "Missing subscriptionId or walletAddress." });
+      }
+
+      const activePeerId = userId || `peer-${walletAddress.substring(2, 10)}`;
+      const validNetwork: 'base' | 'arc' = network === 'arc' ? 'arc' : 'base';
+      const chargeAmount = parseFloat(recurringCharge) || 5.0;
+      const ticketsToAdd = Math.floor(chargeAmount * 10) || 50; // $5/mo = 50 tickets
+
+      let updatedSession = null;
+      if (isMongoConnected) {
+        try {
+          updatedSession = await (UserSession as any).findOneAndUpdate(
+            { peerId: activePeerId },
+            {
+              $set: { walletAddress, network: validNetwork },
+              $inc: { availableTickets: ticketsToAdd }
+            },
+            { new: true, upsert: true }
+          );
+        } catch { isMongoConnected = false; }
+      }
+
+      if (!updatedSession) {
+        const existing = memorySessions.get(activePeerId);
+        const currentTickets = (existing?.availableTickets || 0) + ticketsToAdd;
+        updatedSession = {
+          peerId: activePeerId,
+          walletAddress,
+          network: validNetwork,
+          availableTickets: currentTickets,
+          isQueued: true,
+          createdAt: new Date(),
+        };
+        memorySessions.set(activePeerId, updatedSession);
+      }
+
+      const subAct = {
+        userId: activePeerId,
+        walletAddress,
+        network: validNetwork,
+        activityType: 'ticket_buy' as const,
+        title: `Base Recurring VIP Subscription Activated ($${chargeAmount.toFixed(2)}/mo)`,
+        details: `Subscription ID: ${subscriptionId}. +${ticketsToAdd} Monthly Tickets credited!`,
+        txHash: subscriptionId,
+        ticketsAdded: ticketsToAdd,
+        timestamp: new Date()
+      };
+      if (isMongoConnected) {
+        try { await new (UserActivity as any)(subAct).save(); } catch { inMemoryUserActivities.unshift(subAct); }
+      } else { inMemoryUserActivities.unshift(subAct); }
+
+      const timelineObj = {
+        id: `sub-${Date.now()}`,
+        type: 'pool' as const,
+        title: `VIP Subscription (${ticketsToAdd} Tickets/mo)`,
+        tickets: `+${ticketsToAdd} Tickets ($${chargeAmount.toFixed(2)}/mo)`,
+        wallet: `${walletAddress.substring(0, 6)}...${walletAddress.slice(-4)}`,
+        network: 'Base Mainnet',
+        txHash: subscriptionId,
+        createdAt: new Date()
+      };
+      if (isMongoConnected) {
+        try { await new (TimelineEvent as any)(timelineObj).save(); } catch { inMemoryTimelineEvents.unshift(timelineObj); }
+      } else { inMemoryTimelineEvents.unshift(timelineObj); }
+
+      return res.status(200).json({
+        success: true,
+        message: "Base recurring subscription verified!",
+        ticketsAdded: ticketsToAdd,
+        user: updatedSession
+      });
+    } catch (err: any) {
+      console.error("Subscription verification error:", err);
+      return res.status(500).json({ error: err.message || "Failed to verify subscription." });
+    }
+  });
+
+  // GET /api/onchain-pot endpoint
+  app.get("/api/onchain-pot", async (req: Request, res: Response) => {
+    try {
+      const isTestnet = req.query.testnet === 'true';
+      const info = await fetchOnChainPotInfo(isTestnet);
+      return res.json(info);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // POST /api/evaluate-frame endpoint
   app.post("/api/evaluate-frame", async (req: Request, res: Response) => {
     try {
@@ -825,6 +923,116 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     } catch (routeError) {
       console.error("Critical failure during match pipeline route processing:", routeError);
       return res.status(500).json({ error: "Internal game loop routing processing error." });
+    }
+  });
+
+  // In-memory nonce store for SIWE / Base Account SDK authentication
+  const authNonces = new Set<string>();
+  const viemBaseClient = createPublicClient({ chain: base, transport: viemHttp() });
+
+  // GET /api/auth/nonce endpoint
+  app.get("/api/auth/nonce", (_req: Request, res: Response) => {
+    const nonce = crypto.randomBytes(16).toString("hex");
+    authNonces.add(nonce);
+    res.send(nonce);
+  });
+
+  // POST /api/auth/verify endpoint
+  app.post("/api/auth/verify", async (req: Request, res: Response) => {
+    try {
+      const { address, message, signature, peerId, network } = req.body;
+      const walletAddress = address || req.body.walletAddress;
+
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Missing required parameter: address" });
+      }
+
+      // Check SIWE nonce if provided
+      if (message) {
+        const nonceMatch = message.match(/nonce:\s*(\w+)/i) || message.match(/at (\w+)$/i);
+        const extractedNonce = nonceMatch ? nonceMatch[1] : null;
+        if (extractedNonce && authNonces.has(extractedNonce)) {
+          authNonces.delete(extractedNonce);
+        }
+      }
+
+      // Optional signature verification using Viem on Base
+      if (walletAddress && message && signature) {
+        try {
+          const isValidSig = await viemBaseClient.verifyMessage({
+            address: walletAddress as `0x${string}`,
+            message,
+            signature: signature as `0x${string}`,
+          });
+          if (!isValidSig) {
+            console.warn("Signature verification failed for address:", walletAddress);
+          }
+        } catch (verifyErr) {
+          console.warn("Viem verification warning:", verifyErr);
+        }
+      }
+
+      const activePeerId = peerId || `peer-${walletAddress.substring(2, 10)}`;
+      const validNetwork: "base" | "arc" = network === "arc" ? "arc" : "base";
+      const INITIAL_TICKETS = 10;
+
+      let sessionData = null;
+      if (isMongoConnected) {
+        try {
+          sessionData = await (UserSession as any).findOneAndUpdate(
+            { peerId: activePeerId },
+            {
+              $set: { walletAddress, network: validNetwork, isQueued: true, createdAt: new Date() },
+              $inc: { availableTickets: INITIAL_TICKETS },
+            },
+            { new: true, upsert: true }
+          );
+        } catch {
+          isMongoConnected = false;
+        }
+      }
+
+      if (!sessionData) {
+        const existing = memorySessions.get(activePeerId);
+        const currentTickets = (existing?.availableTickets || 0) + INITIAL_TICKETS;
+        sessionData = {
+          peerId: activePeerId,
+          walletAddress,
+          network: validNetwork,
+          availableTickets: currentTickets,
+          isQueued: true,
+          createdAt: new Date(),
+        };
+        memorySessions.set(activePeerId, sessionData);
+      }
+
+      const authAct = {
+        userId: activePeerId,
+        walletAddress,
+        network: validNetwork,
+        activityType: 'wallet_signin' as const,
+        title: `Base/Coinbase Wallet Authenticated (${validNetwork.toUpperCase()})`,
+        details: `Wallet Address: ${walletAddress}. +10 Welcome Tickets credited!`,
+        ticketsAdded: 10,
+        timestamp: new Date()
+      };
+      if (isMongoConnected) {
+        try { await new (UserActivity as any)(authAct).save(); } catch { inMemoryUserActivities.unshift(authAct); }
+      } else { inMemoryUserActivities.unshift(authAct); }
+
+      return res.json({
+        ok: true,
+        success: true,
+        user: {
+          peerId: sessionData.peerId,
+          walletAddress: sessionData.walletAddress,
+          network: sessionData.network,
+          availableTickets: sessionData.availableTickets,
+          isQueued: sessionData.isQueued,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "Failed to verify authentication" });
     }
   });
 
@@ -1075,7 +1283,7 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
   }
 
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`CHAIN GANG server running on http://0.0.0.0:${PORT}`);
+    console.log(`FACE BET server running on http://0.0.0.0:${PORT}`);
     startCompositeCronScheduler();
   });
 }

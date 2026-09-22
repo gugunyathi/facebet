@@ -79,32 +79,55 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onGoToArena }) => {
             <span>Preferred Web3 Network</span>
           </h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
-              onClick={() => setNetwork("base")}
+              onClick={() => {
+                setNetwork("base");
+                localStorage.setItem("facebet_base_testnet", "false");
+              }}
               className={`p-4 rounded-xl border text-left transition ${
-                network === "base"
+                network === "base" && localStorage.getItem("facebet_base_testnet") !== "true"
                   ? "bg-blue-600/20 border-blue-500 text-white"
                   : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
               }`}
             >
-              <div className="font-bold text-sm">Base Mainnet</div>
-              <div className="text-xs text-gray-300 mt-1">
-                Fast $1 = 10 ticket lottery settlement on Base L2
+              <div className="font-bold text-xs sm:text-sm">Base Mainnet</div>
+              <div className="text-[10px] sm:text-xs text-gray-300 mt-1">
+                Base L2 ($1 = 10 tickets)
               </div>
             </button>
 
             <button
-              onClick={() => setNetwork("arc")}
+              onClick={() => {
+                setNetwork("base");
+                localStorage.setItem("facebet_base_testnet", "true");
+              }}
+              className={`p-4 rounded-xl border text-left transition ${
+                network === "base" && localStorage.getItem("facebet_base_testnet") === "true"
+                  ? "bg-amber-600/20 border-amber-500 text-white"
+                  : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+              }`}
+            >
+              <div className="font-bold text-xs sm:text-sm">Base Sepolia</div>
+              <div className="text-[10px] sm:text-xs text-gray-300 mt-1">
+                Testnet Sandbox Mode
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setNetwork("arc");
+                localStorage.setItem("facebet_base_testnet", "false");
+              }}
               className={`p-4 rounded-xl border text-left transition ${
                 network === "arc"
                   ? "bg-purple-600/20 border-purple-500 text-white"
                   : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
               }`}
             >
-              <div className="font-bold text-sm">ARC Network</div>
-              <div className="text-xs text-gray-300 mt-1">
-                Zero gas Web3 P2P stream state verification
+              <div className="font-bold text-xs sm:text-sm">ARC Network</div>
+              <div className="text-[10px] sm:text-xs text-gray-300 mt-1">
+                Zero gas P2P stream verification
               </div>
             </button>
           </div>

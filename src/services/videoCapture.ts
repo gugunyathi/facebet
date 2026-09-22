@@ -1,16 +1,28 @@
+let sharedCanvas: HTMLCanvasElement | null = null;
+
 export const capturePlayerFrame = (videoElementId: string): string | null => {
   const video = document.getElementById(videoElementId) as HTMLVideoElement;
-  if (!video || video.paused || video.ended) return null;
+  if (!video || video.paused || video.ended || !video.videoWidth) return null;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
+  if (!sharedCanvas) {
+    sharedCanvas = document.createElement('canvas');
+  }
 
-  const ctx = canvas.getContext('2d');
+  // Downscale to 320x240 for high performance & minimal bandwidth
+  const targetWidth = 320;
+  const targetHeight = 240;
+
+  if (sharedCanvas.width !== targetWidth || sharedCanvas.height !== targetHeight) {
+    sharedCanvas.width = targetWidth;
+    sharedCanvas.height = targetHeight;
+  }
+
+  const ctx = sharedCanvas.getContext('2d');
   if (!ctx) return null;
 
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+  // Compress at 0.55 quality JPEG for fast Gemini multi-modal evaluation
+  const dataUrl = sharedCanvas.toDataURL('image/jpeg', 0.55);
   
   // Split out the prefix to isolate raw base64 data stream segments
   const parts = dataUrl.split(',');

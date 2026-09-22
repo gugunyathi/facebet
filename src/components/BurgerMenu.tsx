@@ -40,7 +40,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
     },
     {
       id: "timeline" as const,
-      label: "CHAIN GANG Timeline",
+      label: "FACE BET Timeline",
       icon: MdTimeline,
       desc: "Live draws, winner logs & jackpot records",
     },
@@ -90,7 +90,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             </div>
             <div>
               <h2 className="font-extrabold text-base tracking-wide bg-gradient-to-r from-yellow-300 via-amber-400 to-purple-300 bg-clip-text text-transparent">
-                CHAIN GANG
+                FACE BET
               </h2>
               <p className="text-[10px] text-gray-300">Base & ARC Web3 Navigation</p>
             </div>
@@ -187,7 +187,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
 
         {/* Drawer Footer */}
         <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300">
-          <div>CHAIN GANG • Face-to-Face P2P Arena</div>
+          <div>FACE BET • Face-to-Face P2P Arena</div>
           <div className="text-purple-300 mt-0.5">Base & ARC Smart Contracts</div>
         </div>
       </div>

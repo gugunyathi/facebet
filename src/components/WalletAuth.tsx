@@ -5,8 +5,10 @@ import {
   MdErrorOutline,
   MdConfirmationNumber,
   MdFlashOn,
-  MdRefresh,
 } from "react-icons/md";
+import { createBaseAccountSDK } from "@base-org/account";
+import { SignInWithBaseButton } from "@base-org/account-ui/react";
+import { useTransactionBridge } from "../hooks/useTransactionBridge";
 
 declare global {
   interface Window {
@@ -16,8 +18,6 @@ declare global {
     };
   }
 }
-
-import { useTransactionBridge } from "../hooks/useTransactionBridge";
 
 export interface UserSessionData {
   peerId: string;
@@ -65,87 +65,137 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
   const connectWallet = async (network: "base" | "arc") => {
     setError(null);
     setStatusMessage(null);
-
-    if (typeof window === "undefined" || !window.ethereum) {
-      setError(
-        "No Web3 wallet extension detected (e.g. MetaMask or Coinbase Wallet). Please install a browser extension or enter demo mode."
-      );
-      return;
-    }
-
     setLoading(network);
 
     try {
-      // 1. Request accounts
-      setStatusMessage("Connecting to wallet...");
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No wallet accounts selected.");
+      // 1. Fetch or generate nonce for SIWE
+      let nonce = window.crypto.randomUUID().replace(/-/g, "");
+      try {
+        const nonceRes = await fetch("/api/auth/nonce");
+        if (nonceRes.ok) {
+          nonce = await nonceRes.text();
+        }
+      } catch (nonceErr) {
+        console.warn("Using local nonce fallback:", nonceErr);
       }
 
-      const walletAddress = accounts[0];
+      let walletAddress = "";
+      let signature = "";
+      let message = "";
 
-      // 2. Switch or add network
-      const targetChain = network === "base" ? BASE_CHAIN : ARC_CHAIN;
-      try {
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: targetChain.chainId }],
-        });
-      } catch (switchError: any) {
-        // Chain not added to wallet yet
-        if (switchError.code === 4902) {
+      // 2. Try Base Account SDK (Coinbase Wallet) for Base Network
+      if (network === "base") {
+        try {
+          setStatusMessage("Initializing Coinbase / Base Account SDK...");
+          const baseSDK = createBaseAccountSDK({ appName: "FACE BET" });
+          const provider = baseSDK.getProvider();
+
+          // Switch to Base mainnet
           try {
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [targetChain],
+            await provider.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: "0x2105" }],
             });
-          } catch (addErr) {
-            console.warn("Could not add chain automatically:", addErr);
+          } catch (switchErr) {
+            console.warn("Switch chain warning on Base SDK:", switchErr);
           }
+
+          // Request wallet_connect with signInWithEthereum
+          setStatusMessage("Authenticating with Coinbase / Base Wallet...");
+          const connectRes: any = await provider.request({
+            method: "wallet_connect",
+            params: [
+              {
+                version: "1",
+                capabilities: {
+                  signInWithEthereum: {
+                    nonce,
+                    chainId: "0x2105",
+                  },
+                },
+              },
+            ],
+          });
+
+          if (connectRes?.accounts && connectRes.accounts.length > 0) {
+            const acc = connectRes.accounts[0];
+            walletAddress = acc.address;
+            const siweCap = acc.capabilities?.signInWithEthereum;
+            if (siweCap) {
+              message = siweCap.message || "";
+              signature = siweCap.signature || "";
+            }
+          }
+        } catch (baseSdkErr: any) {
+          console.warn("Base SDK connect method failed or unsupported, using standard injected fallback:", baseSdkErr);
         }
       }
 
-      // 3. Request personal sign signature containing peerId
-      setStatusMessage(`Signing authentication payload for ${network.toUpperCase()}...`);
-      const signMessage = `Lottery Live Authentication\n\nPeer ID: ${
-        peerId || "spectator-peer"
-      }\nNetwork: ${network.toUpperCase()}\nTimestamp: ${new Date().toISOString()}`;
+      // 3. Fallback to standard injected Web3 provider (MetaMask, Coinbase Extension, etc.)
+      if (!walletAddress) {
+        if (typeof window === "undefined" || !window.ethereum) {
+          throw new Error("No Web3 wallet detected. Please install Coinbase Wallet or MetaMask extension, or use Demo mode.");
+        }
 
-      let signature = "";
-      try {
+        setStatusMessage("Connecting to browser wallet extension...");
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No wallet account selected.");
+        }
+        walletAddress = accounts[0];
+
+        // Switch to target chain
+        const targetChain = network === "base" ? BASE_CHAIN : ARC_CHAIN;
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: targetChain.chainId }],
+          });
+        } catch (switchError: any) {
+          if (switchError.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [targetChain],
+              });
+            } catch (addErr) {
+              console.warn("Could not add network automatically:", addErr);
+            }
+          }
+        }
+
+        // Sign SIWE payload
+        setStatusMessage(`Signing payload for ${network.toUpperCase()}...`);
+        message = `FACE BET Authentication\n\nPeer ID: ${peerId || "spectator-peer"}\nNetwork: ${network.toUpperCase()}\nNonce: ${nonce}\nTimestamp: ${new Date().toISOString()}`;
+        
         signature = await window.ethereum.request({
           method: "personal_sign",
-          params: [signMessage, walletAddress],
+          params: [message, walletAddress],
         });
-      } catch (signErr: any) {
-        throw new Error(`Signature request cancelled: ${signErr.message || signErr}`);
       }
 
-      // 4. Submit to backend /api/auth-wallet
-      setStatusMessage("Verifying session with server...");
-      const response = await fetch("/api/auth-wallet", {
+      // 4. Submit verification to server
+      setStatusMessage("Verifying signature with server...");
+      const verifyResponse = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          peerId: peerId || `peer-${Math.random().toString(36).slice(2, 8)}`,
-          walletAddress,
-          network,
+          address: walletAddress,
+          message,
           signature,
+          peerId: peerId || `peer-${Math.random().toString(36).slice(2, 8)}`,
+          network,
         }),
       });
 
-      const data = await response.json();
+      const verifyData = await verifyResponse.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to authenticate wallet session.");
+      if (!verifyResponse.ok || (!verifyData.ok && !verifyData.success)) {
+        throw new Error(verifyData.error || "Failed to authenticate wallet session.");
       }
 
       setStatusMessage("Successfully authenticated! 10 Lottery Tickets credited.");
-      onAuthSuccess(data.user);
+      onAuthSuccess(verifyData.user);
     } catch (err: any) {
       console.error("Wallet auth error:", err);
       setError(err.message || "An unexpected error occurred during wallet authentication.");
@@ -288,24 +338,34 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
             <span className="text-purple-400 font-semibold">ARC Network</span>. Authenticated players automatically receive 10 tickets ($1 value) and access to the live P2P video matching lobby.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              onClick={() => connectWallet("base")}
-              disabled={loading !== null}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-300"></span>
-              <span>{loading === "base" ? "Connecting Base..." : "Connect Base Wallet"}</span>
-            </button>
+          <div className="flex flex-col gap-3">
+            {/* Native Sign in with Base Button */}
+            <div className="w-full flex justify-center">
+              <SignInWithBaseButton
+                colorScheme="dark"
+                onClick={() => connectWallet("base")}
+              />
+            </div>
 
-            <button
-              onClick={() => connectWallet("arc")}
-              disabled={loading !== null}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-300"></span>
-              <span>{loading === "arc" ? "Connecting ARC..." : "Connect ARC Wallet"}</span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => connectWallet("base")}
+                disabled={loading !== null}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-300"></span>
+                <span>{loading === "base" ? "Connecting Base..." : "Connect Coinbase Wallet"}</span>
+              </button>
+
+              <button
+                onClick={() => connectWallet("arc")}
+                disabled={loading !== null}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-300"></span>
+                <span>{loading === "arc" ? "Connecting ARC..." : "Connect ARC Wallet"}</span>
+              </button>
+            </div>
           </div>
 
           <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">

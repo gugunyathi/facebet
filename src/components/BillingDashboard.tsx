@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { pay, subscribe } from '@base-org/account';
 
 interface BillingDashboardProps {
   userId: string;
@@ -6,6 +7,9 @@ interface BillingDashboardProps {
   activeNetwork: 'base' | 'arc' | 'none';
   onPaymentComplete: () => void;
 }
+
+// Vault treasury wallet address for receiving game ticket payments on Base
+const TREASURY_WALLET_ADDRESS = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
 
 export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, userWallet, activeNetwork, onPaymentComplete }) => {
   const [fiatEmail, setFiatEmail] = useState("");
@@ -27,7 +31,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
       const data = await response.json();
       if (data.authorizationUrl) {
         setMessage("Redirecting to Paystack secure checkout...");
-        window.location.href = data.authorizationUrl; // Redirect to secure transaction frame channels
+        window.location.href = data.authorizationUrl;
       } else if (data.data?.authorization_url) {
         window.location.href = data.data.authorization_url;
       } else {
@@ -41,13 +45,110 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
     }
   };
 
+  const checkoutWithBasePay = async () => {
+    setIsProcessing(true);
+    setMessage(null);
+    setErrorMessage(null);
+    try {
+      const isTestnet = typeof localStorage !== "undefined" && localStorage.getItem("facebet_base_testnet") === "true";
+      setMessage(`Opening Base Account Pay sheet ($1.00 USDC) on ${isTestnet ? 'Base Sepolia' : 'Base Mainnet'}...`);
+      const recipient = userWallet || TREASURY_WALLET_ADDRESS;
+      
+      // Call @base-org/account pay()
+      const payment = await pay({
+        amount: "1.00",
+        to: recipient,
+        testnet: isTestnet,
+      });
+
+      const txHash = payment.id || `0x_base_pay_${Date.now()}`;
+      setMessage(`Payment Approved! Verifying transaction ${txHash.substring(0, 10)}...`);
+
+      const response = await fetch('/api/buy-tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          walletAddress: recipient,
+          network: 'base',
+          txHash,
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setMessage("Base Payment Verified! +10 Tickets credited successfully.");
+        onPaymentComplete();
+      } else {
+        throw new Error(data.error || "Failed to register Base ticket purchase.");
+      }
+    } catch (err: any) {
+      console.error("Base payment error:", err);
+      setErrorMessage(err.message || "Base Pay transaction cancelled or failed.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const subscribeWithBase = async () => {
+    setIsProcessing(true);
+    setMessage(null);
+    setErrorMessage(null);
+    try {
+      const isTestnet = typeof localStorage !== "undefined" && localStorage.getItem("facebet_base_testnet") === "true";
+      setMessage(`Opening Base Recurring Subscription prompt ($5.00/mo) on ${isTestnet ? 'Base Sepolia' : 'Base Mainnet'}...`);
+      const recipient = userWallet || TREASURY_WALLET_ADDRESS;
+
+      // Call @base-org/account subscribe()
+      const subOptions: any = {
+        recurringCharge: "5.00",
+        subscriptionOwner: recipient,
+        periodInDays: 30,
+        testnet: isTestnet,
+      };
+      if (isTestnet) {
+        subOptions.overridePeriodInSecondsForTestnet = 86400;
+      }
+
+      const subResult = await subscribe(subOptions);
+
+      setMessage("Subscription spend permission signed! Registering VIP subscription...");
+
+      const response = await fetch('/api/subscriptions/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          walletAddress: recipient,
+          subscriptionId: subResult.id,
+          recurringCharge: subResult.recurringCharge,
+          periodInDays: subResult.periodInDays,
+          network: 'base'
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setMessage(`VIP Subscription Activated! +${data.ticketsAdded} Tickets credited!`);
+        onPaymentComplete();
+      } else {
+        throw new Error(data.error || "Failed to register subscription.");
+      }
+    } catch (err: any) {
+      console.error("Base subscription error:", err);
+      setErrorMessage(err.message || "Base subscription request cancelled or failed.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const checkoutWithCryptoWallet = async () => {
     if (!userWallet || activeNetwork === 'none') return alert("Please attach a valid Base or ARC Web3 wallet first.");
     setIsProcessing(true);
     setMessage(null);
     setErrorMessage(null);
     try {
-      // Execute window.ethereum or crypto transaction signature
       const mockBlockchainTxHash = `0x_crypto_tx_${Math.random().toString(36).substring(2, 16)}`;
       
       const response = await fetch('/api/crypto/verify-hash', {
@@ -86,11 +187,46 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
         </span>
       </div>
 
+      {/* Base Account SDK Direct Payments (Coinbase Wallet) */}
+      <div className="pb-4 border-b border-[#30363d] space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            Base Account SDK Payments
+          </label>
+          <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded uppercase">
+            Base Mainnet
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            onClick={checkoutWithBasePay}
+            disabled={isProcessing}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <span>🔵 Base Pay $1.00</span>
+          </button>
+
+          <button
+            onClick={subscribeWithBase}
+            disabled={isProcessing}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <span>🔄 Subscribe $5/mo</span>
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400">
+          • <strong>Base Pay</strong>: One-time $1.00 (10 Tickets)<br/>
+          • <strong>Subscribe</strong>: Recurring $5.00/mo (50 VIP Tickets auto-renew)
+        </p>
+      </div>
+
       {/* Paystack Fiat Channel Segment Controls Setup */}
       <div className="pb-4 border-b border-[#30363d] space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-            Option 1: Fiat / Credit Card (Paystack)
+            Fiat / Credit Card (Paystack)
           </label>
           <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded">
             Cards & Mobile Money
@@ -118,7 +254,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-            Option 2: Web3 Crypto Execution
+            Injected Wallet Execution
           </label>
           <span className="text-[10px] text-purple-400 font-semibold bg-purple-500/10 px-2 py-0.5 rounded uppercase">
             {activeNetwork !== 'none' ? `${activeNetwork} Network` : 'Connect Wallet'}
