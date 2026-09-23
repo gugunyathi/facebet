@@ -17,9 +17,6 @@ export const StartVideoChatOverlay: React.FC<StartVideoChatOverlayProps> = ({
   const onlineUsersCount = useSelector((state: any) => state.main.onlineUsersCount);
 
   const handleStartCamera = async () => {
-    if (startVideoStream) {
-      await startVideoStream();
-    }
     await join();
   };
 

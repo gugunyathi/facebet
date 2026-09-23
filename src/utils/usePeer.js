@@ -287,6 +287,20 @@ export default function usePeer() {
 
   async function startVideoStream() {
     dispatch(setLoading(true));
+    
+    // Check if we already have a valid real camera stream
+    if (
+      mediaStreamRef.current && 
+      mediaStreamRef.current.getVideoTracks().length > 0 &&
+      mediaStreamRef.current.getVideoTracks()[0].label !== "" &&
+      !mediaStreamRef.current.getVideoTracks()[0].label.includes("canvas")
+    ) {
+      log("Camera already active, reusing existing stream.");
+      dispatch(setLoading(false));
+      dispatch(setStarted(true));
+      return;
+    }
+
     let videoStream = null;
 
     try {

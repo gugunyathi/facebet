@@ -18,7 +18,7 @@ export const LocalSide: React.FC<LocalSideProps> = ({
   onAuthSuccess,
   onBuyTicketsSuccess,
 }) => {
-  const { localStream } = useContext(VideoProvider);
+  const { localStream, mediaStream } = useContext(VideoProvider);
   const started = useSelector((state: any) => state.main.started);
   const loading = useSelector((state: any) => state.main.loading);
   const error = useSelector((state: any) => state.main.error);
@@ -45,5 +45,5 @@ export const LocalSide: React.FC<LocalSideProps> = ({
     return <ChatOverlay />;
   };
 
-  return <Side videoRef={localStream}>{renderOverlay()}</Side>;
+  return <Side videoRef={localStream} stream={mediaStream}>{renderOverlay()}</Side>;
 };
