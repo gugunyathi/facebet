@@ -68,11 +68,11 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
   onAuthSuccess,
   onBuyTicketsSuccess,
 }) => {
-  const [loading, setLoading] = useState<"base" | "arc" | "buy" | null>(null);
+  const [loading, setLoading] = useState<"base" | "arc" | "metamask" | "buy" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const connectWallet = async (network: "base" | "arc") => {
+  const connectWallet = async (network: "base" | "arc" | "metamask") => {
     setError(null);
     setStatusMessage(null);
     setLoading(network);
@@ -154,8 +154,8 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
         }
         walletAddress = accounts[0];
 
-        // Switch to target chain
-        const targetChain = network === "base" ? BASE_CHAIN : ARC_CHAIN;
+        // Switch to target chain (default to Base for MetaMask)
+        const targetChain = network === "arc" ? ARC_CHAIN : BASE_CHAIN;
         try {
           await window.ethereum.request({
             method: "wallet_switchEthereumChain",
@@ -174,9 +174,14 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
           }
         }
 
-        // Sign SIWE payload
+        // Sign EIP-4361 SIWE payload
         setStatusMessage(`Signing payload for ${network.toUpperCase()}...`);
-        message = `FACE BET Authentication\n\nPeer ID: ${peerId || "spectator-peer"}\nNetwork: ${network.toUpperCase()}\nNonce: ${nonce}\nTimestamp: ${new Date().toISOString()}`;
+        const domain = window.location.host;
+        const uri = window.location.origin;
+        const chainId = parseInt(targetChain.chainId, 16);
+        const issuedAt = new Date().toISOString();
+        
+        message = `${domain} wants you to sign in with your Ethereum account:\n${walletAddress}\n\nFACE BET Authentication (Peer ID: ${peerId || "spectator"})\n\nURI: ${uri}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
         
         signature = await window.ethereum.request({
           method: "personal_sign",
@@ -364,13 +369,22 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
               >
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-300"></span>
-                <span>{loading === "base" ? "Connecting Base..." : "Connect Coinbase Wallet"}</span>
+                <span>{loading === "base" ? "Connecting..." : "Coinbase Wallet"}</span>
+              </button>
+
+              <button
+                onClick={() => connectWallet("metamask")}
+                disabled={loading !== null}
+                className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-orange-300"></span>
+                <span>{loading === "metamask" ? "Connecting..." : "MetaMask SIWE"}</span>
               </button>
 
               <button
                 onClick={() => connectWallet("arc")}
                 disabled={loading !== null}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
+                className="w-full sm:col-span-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2"
               >
                 <span className="w-2.5 h-2.5 rounded-full bg-purple-300"></span>
                 <span>{loading === "arc" ? "Connecting ARC..." : "Connect ARC Wallet"}</span>

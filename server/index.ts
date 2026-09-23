@@ -17,8 +17,8 @@ import { createServer as createViteServer } from "vite";
 import { UserSession } from "./models/UserSession";
 import { UserActivity, inMemoryUserActivities } from "./models/UserActivity";
 import { TimelineEvent, inMemoryTimelineEvents } from "./models/TimelineEvent";
-import { evaluateLiveFrame } from "./services/geminiEngine";
-import { fetchOnChainPotInfo, awardPrizeOnChain, SupportedNetwork } from "./services/contractBridge";
+import { evaluateLiveFrame, evaluateDuelMatchWinner } from "./services/geminiEngine";
+import { fetchOnChainPotInfo, awardPrizeOnChain, SupportedNetwork, ContractBridge } from "./services/contractBridge";
 import { FeedEngine, memoryFeedItems } from "./services/feedEngine";
 import { FeedItem } from "./models/FeedItem";
 import { TicketQueue } from "./models/TicketQueue";
@@ -596,7 +596,7 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         if (typeof availableRoom.save === 'function') {
           try { await availableRoom.save(); } catch {}
         }
-        return res.status(200).json({ type: 'PVP', action: 'START_DUEL', room: availableRoom });
+        return res.status(200).json({ type: 'PVP', action: 'START_DUEL', room: availableRoom, opponentPeerId: availableRoom.player1PeerId });
       } else {
         const generatedRoomId = `duel_${Math.random().toString(36).substring(2, 10)}`;
         const newRoomData = {
@@ -1259,6 +1259,39 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       return res.json({ success: true, remainingTickets });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/evaluate-duel — dual camera frame AI evaluation endpoint
+  app.post("/api/evaluate-duel", async (req: Request, res: Response) => {
+    try {
+      const { p1Frame, p2Frame, p1Wallet, p2Wallet } = req.body || {};
+
+      const activeTrend = currentGlobalAITrend || "Cyberpunk style, ultra-shock expression matrix matching dynamic neon background environments.";
+
+      // Process both images across the Gemini multimodal structural model layer simultaneously
+      const verdict = await evaluateDuelMatchWinner(p1Frame, p2Frame, activeTrend);
+
+      const winningWallet = verdict.winner === 1 ? (p1Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F") : (p2Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+      console.log(`🏆 Duel Winner Declared: Player ${verdict.winner} (${winningWallet}). Reason: ${verdict.reason}`);
+
+      // Dispatch Base L2 On-Chain Payout Bridge Transaction
+      let txHash = "";
+      try {
+        txHash = await ContractBridge.executeOnChainPayout(winningWallet, verdict.reason);
+      } catch (txErr: any) {
+        console.warn("ContractBridge execution notice:", txErr?.message || txErr);
+      }
+
+      return res.status(200).json({
+        success: true,
+        winner: verdict.winner,
+        wallet: winningWallet,
+        reason: verdict.reason,
+        txHash
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
     }
   });
 

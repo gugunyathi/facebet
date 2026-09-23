@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { pay } from "@base-org/account";
-import { LocalSide } from "./LocalSide";
-import { RemoteSide } from "./RemoteSide";
+import { P2PArena } from "@/components/P2PArena";
 import { VideoProvider, API_URL } from "@/utils/constants";
 import usePeer from "@/utils/usePeer";
 import { DuelModule } from "@/components/DuelModule";
@@ -41,7 +40,7 @@ const Main: React.FC<MainProps> = ({
       });
 
       const txHash = payment.id || `0x_base_pay_${Date.now()}`;
-      
+
       const response = await fetch(`${API_URL}/api/buy-tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,11 +81,10 @@ const Main: React.FC<MainProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setArenaMode("boss")}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${
-                arenaMode === "boss"
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${arenaMode === "boss"
                   ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow border border-purple-400/50"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
-              }`}
+                }`}
             >
               <span>🔮</span>
               <span>P2AI Arena</span>
@@ -94,11 +92,10 @@ const Main: React.FC<MainProps> = ({
 
             <button
               onClick={() => setArenaMode("p2p")}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${
-                arenaMode === "p2p"
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${arenaMode === "p2p"
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
-              }`}
+                }`}
             >
               <span>⚔️</span>
               <span>P2P Arena</span>
@@ -134,12 +131,11 @@ const Main: React.FC<MainProps> = ({
               />
             </div>
           ) : (
-            <div className="w-full h-full min-h-[500px] flex flex-col md:flex-row relative rounded-2xl overflow-hidden border border-[#644af1]/30">
-              <RemoteSide />
-              <LocalSide
+            <div className="max-w-4xl mx-auto w-full">
+              <P2PArena
                 userSession={userSession}
-                onAuthSuccess={onAuthSuccess}
-                onBuyTicketsSuccess={onBuyTicketsSuccess}
+                onRequireAuth={onRequireAuth}
+                onBuyTickets={handleBasePay}
               />
             </div>
           )}

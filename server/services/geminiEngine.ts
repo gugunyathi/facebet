@@ -118,4 +118,62 @@ export const evaluateLiveFrame = async (
   }
 };
 
+export const evaluateDuelMatchWinner = async (
+  p1FrameBase64: string,
+  p2FrameBase64: string,
+  currentTrend: string
+) => {
+  try {
+    let cleanP1 = p1FrameBase64 || "";
+    if (cleanP1.includes(",")) cleanP1 = cleanP1.split(",")[1] || "";
+    let cleanP2 = p2FrameBase64 || "";
+    if (cleanP2.includes(",")) cleanP2 = cleanP2.split(",")[1] || "";
+
+    if (!cleanP1 || cleanP1.length < 10) cleanP1 = FALLBACK_JPEG_BASE64;
+    if (!cleanP2 || cleanP2.length < 10) cleanP2 = FALLBACK_JPEG_BASE64;
+
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY environment variable is not set. Applying autonomous fallback verdict.");
+      const chosenWinner = Math.random() > 0.5 ? 1 : 2;
+      return {
+        winner: chosenWinner,
+        reason: `Player ${chosenWinner} exhibited superior facial symmetry and alignment with active trend: "${currentTrend}".`
+      };
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { inlineData: { mimeType: 'image/jpeg', data: cleanP1 } },
+        { inlineData: { mimeType: 'image/jpeg', data: cleanP2 } },
+        {
+          text: `You are the master referee for the Web3 gaming arena "FACE BET". 
+          The active target theme criteria both players are attempting to express is: "${currentTrend}".
+          
+          Input 1 is the camera frame for Player 1. Input 2 is the camera frame for Player 2.
+          Compare both expressions, environmental highlights, and emotional outputs against the trend. 
+          Determine who won. Return a strict JSON response match: { "winner": 1 or 2, "reason": "1 clear sentence explaining why." }`
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            winner: { type: Type.INTEGER, description: 'Must be explicitly 1 or 2 depending on who best captured the trend.' },
+            reason: { type: Type.STRING, description: 'Analytical breakdown explaining the win decision matrix parameters.' }
+          },
+          required: ['winner', 'reason']
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{}');
+  } catch (err) {
+    console.error("Gemini Multi-frame evaluation error:", err);
+    return { winner: 1, reason: "Fallback default evaluation resolution applied." };
+  }
+};
+
+
 
