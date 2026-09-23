@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { MdTimeline, MdConfirmationNumber, MdStars, MdOpenInNew, MdRefresh } from "react-icons/md";
+import { API_URL } from "../utils/constants";
 
 interface TimelinePageProps {
   onGoToArena: () => void;
@@ -12,7 +13,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({ onGoToArena }) => {
   const fetchTimeline = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/timeline");
+      const res = await fetch(`${API_URL}/api/timeline`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.timeline)) {

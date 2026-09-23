@@ -105,23 +105,19 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
     };
   }, [videoContext]);
 
-  // Bind local camera stream to p1LocalDuelView element
+  // Bind local camera stream to p1LocalDuelView element safely
   useEffect(() => {
-    const bindTimer = setInterval(() => {
-      const vidEl = document.getElementById("p1LocalDuelView") as HTMLVideoElement;
-      if (vidEl) {
-        vidEl.muted = true;
-        const streamToUse = activeMediaStream || videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
-        if (streamToUse && vidEl.srcObject !== streamToUse) {
-          vidEl.srcObject = streamToUse as MediaStream;
-        }
-        if (vidEl.paused) {
-          vidEl.play().catch(() => {});
-        }
+    const vidEl = document.getElementById("p1LocalDuelView") as HTMLVideoElement;
+    if (vidEl) {
+      vidEl.muted = true;
+      vidEl.playsInline = true;
+      vidEl.autoplay = true;
+      const streamToUse = activeMediaStream || videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
+      if (streamToUse && vidEl.srcObject !== streamToUse) {
+        vidEl.srcObject = streamToUse as MediaStream;
+        vidEl.play().catch(() => {});
       }
-    }, 200);
-
-    return () => clearInterval(bindTimer);
+    }
   }, [matchStatus, activeMediaStream, videoContext]);
 
   // Countdown timer loop

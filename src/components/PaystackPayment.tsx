@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from "../utils/constants";
 
 interface PaystackProps {
   userId: string;
@@ -11,7 +12,7 @@ export const PaystackPayment: React.FC<PaystackProps> = ({ userId, emailAddress 
   const triggerCardCheckout = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/paystack/initialize", {
+      const response = await fetch(`${API_URL}/api/paystack/initialize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: emailAddress, amountInCents: 100, userId: userId }) // $1.00 Entry Pack

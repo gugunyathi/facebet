@@ -96,24 +96,21 @@ export default function usePeer() {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (localStream.current && mediaStreamRef.current) {
-        localStream.current.muted = true;
-        if (localStream.current.srcObject !== mediaStreamRef.current) {
-          localStream.current.srcObject = mediaStreamRef.current;
-        }
-        if (localStream.current.paused) {
-          localStream.current.play?.().catch(() => {});
-        }
+    if (localStream.current && mediaStreamRef.current) {
+      localStream.current.muted = true;
+      if (localStream.current.srcObject !== mediaStreamRef.current) {
+        localStream.current.srcObject = mediaStreamRef.current;
+        localStream.current.play?.().catch(() => {});
       }
-    }, 300);
-    return () => clearInterval(timer);
-  }, [started]);
+    }
+  }, [started, mediaStream]);
 
   const { sendMessage, lastMessage, readyState } = useWebSocket(WS_URL, {
     heartbeat: HEARTBEAT,
+    shouldReconnect: () => false,
+    reconnectAttempts: 2,
     onError: (e) => {
-      log("WebSocket connection warning:", e);
+      log("WebSocket connection note:", e);
     },
   });
 
@@ -129,12 +126,7 @@ export default function usePeer() {
     const handleOpen = (id) => {
       log("Peer open", id);
       setMyPeerId(id);
-
-      if (readyState !== ReadyState.CLOSED) {
-        dispatch(setReady(true));
-      } else {
-        dispatch(setError("default"));
-      }
+      dispatch(setReady(true));
     };
 
     const handleConnection = (conn) => {

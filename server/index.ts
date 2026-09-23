@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import http from "http";
 import path from "path";
 import crypto from "crypto";
+import cors from "cors";
 
 try {
   if (typeof (process as any).loadEnvFile === "function") {
@@ -145,6 +146,11 @@ export async function startAppServer() {
     }
   });
 
+  app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }));
   app.use(express.json());
 
   // Serve static clip media files and public directory assets

@@ -3,12 +3,12 @@ import React, { useEffect, useRef } from "react";
 export const VideoPlayer = ({ isLocal = true, videoRef, stream = null, ...props }) => {
   const internalRef = useRef(null);
   const refToUse = videoRef || internalRef;
+  const isPlayingRef = useRef(false);
 
   useEffect(() => {
     const el = refToUse.current;
     if (!el) return;
 
-    // Explicitly set DOM properties required for browser autoplay policy
     if (isLocal) {
       el.muted = true;
       el.volume = 0;
@@ -20,22 +20,30 @@ export const VideoPlayer = ({ isLocal = true, videoRef, stream = null, ...props 
       el.srcObject = stream;
     }
 
-    const playVideo = () => {
-      if (el.paused) {
-        el.play?.().catch((err) => {
-          console.warn("Autoplay interaction catch:", err);
-        });
+    const safePlayVideo = async () => {
+      if (!el || isPlayingRef.current) return;
+      try {
+        isPlayingRef.current = true;
+        if (el.paused) {
+          await el.play();
+        }
+      } catch (err) {
+        if (err.name !== "AbortError" && err.name !== "NotAllowedError") {
+          console.warn("Video stream play notice:", err.message);
+        }
+      } finally {
+        isPlayingRef.current = false;
       }
     };
 
-    playVideo();
+    safePlayVideo();
 
-    el.addEventListener("loadedmetadata", playVideo);
-    el.addEventListener("canplay", playVideo);
+    el.addEventListener("loadedmetadata", safePlayVideo);
+    el.addEventListener("canplay", safePlayVideo);
 
     return () => {
-      el.removeEventListener("loadedmetadata", playVideo);
-      el.removeEventListener("canplay", playVideo);
+      el.removeEventListener("loadedmetadata", safePlayVideo);
+      el.removeEventListener("canplay", safePlayVideo);
     };
   }, [refToUse, isLocal, stream]);
 
@@ -55,4 +63,3 @@ export const VideoPlayer = ({ isLocal = true, videoRef, stream = null, ...props 
     />
   );
 };
-

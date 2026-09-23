@@ -9,6 +9,7 @@ import {
 import { createBaseAccountSDK } from "@base-org/account";
 import { SignInWithBaseButton } from "@base-org/account-ui/react";
 import { useTransactionBridge } from "../hooks/useTransactionBridge";
+import { API_URL } from "../utils/constants";
 
 declare global {
   interface Window {
@@ -80,7 +81,7 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
       // 1. Fetch or generate nonce for SIWE
       let nonce = window.crypto.randomUUID().replace(/-/g, "");
       try {
-        const nonceRes = await fetch("/api/auth/nonce");
+        const nonceRes = await fetch(`${API_URL}/api/auth/nonce`);
         if (nonceRes.ok) {
           nonce = await nonceRes.text();
         }
@@ -185,7 +186,7 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
 
       // 4. Submit verification to server
       setStatusMessage("Verifying signature with server...");
-      const verifyResponse = await fetch("/api/auth/verify", {
+      const verifyResponse = await fetch(`${API_URL}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -224,7 +225,7 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
         .map(() => Math.floor(Math.random() * 16).toString(16))
         .join("")}`;
 
-      const response = await fetch("/api/auth-wallet", {
+      const response = await fetch(`${API_URL}/api/auth-wallet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

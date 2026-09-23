@@ -40,6 +40,9 @@ const defaultWsHost =
 export const WS_URL =
   import.meta.env.VITE_WS_REMOTE_URL || `${wsProtocol}//${defaultWsHost}`;
 
+export const API_URL =
+  import.meta.env.VITE_API_URL || WS_URL.replace("wss://", "https://").replace("ws://", "http://");
+
 export const HEARTBEAT = {
   message: "ping",
   interval: 58000,
