@@ -14,6 +14,7 @@ import {
   MdStars,
   MdGeneratingTokens,
   MdAccountBalanceWallet,
+  MdLogout,
 } from "react-icons/md";
 
 export function App() {
@@ -54,6 +55,21 @@ export function App() {
     }
   };
 
+  const handleLogout = () => {
+    setUserSession(null);
+    try {
+      localStorage.removeItem("facebet_session");
+    } catch (e) {
+      console.warn("Could not clear session from localStorage:", e);
+    }
+    // Disconnect injected wallet provider if available
+    if (typeof window !== "undefined" && (window as any).ethereum?.disconnect) {
+      try {
+        (window as any).ethereum.disconnect();
+      } catch {}
+    }
+  };
+
   return (
     <AppLayout>
       <div className="w-full h-full flex flex-col bg-[#07012c] text-white font-sans overflow-hidden">
@@ -65,6 +81,7 @@ export function App() {
               activePage={activePage}
               onSelectPage={setActivePage}
               userSession={userSession}
+              onLogout={handleLogout}
             />
 
             <div className="flex items-center space-x-1.5 sm:space-x-2.5 cursor-pointer min-w-0" onClick={() => setActivePage("arena")}>
@@ -105,23 +122,34 @@ export function App() {
               </div>
             )}
 
-            {/* Wallet Connect Button */}
-            <button
-              onClick={() => setIsWalletModalOpen(true)}
-              className="bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 hover:from-amber-500 hover:to-yellow-600 text-black font-extrabold text-[11px] sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl shadow-lg transition flex items-center space-x-1 sm:space-x-1.5 transform active:scale-95"
-            >
-              {userSession ? (
-                <>
+            {/* Wallet Connect / Tickets Button + Disconnect */}
+            {userSession ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setIsWalletModalOpen(true)}
+                  className="bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 hover:from-amber-500 hover:to-yellow-600 text-black font-extrabold text-[11px] sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl shadow-lg transition flex items-center space-x-1 sm:space-x-1.5 transform active:scale-95"
+                >
                   <MdConfirmationNumber className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black shrink-0" />
                   <span>{userSession.availableTickets} Tix</span>
-                </>
-              ) : (
-                <>
-                  <MdAccountBalanceWallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black shrink-0" />
-                  <span>Connect</span>
-                </>
-              )}
-            </button>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  title="Disconnect Wallet"
+                  className="bg-red-600/80 hover:bg-red-500 text-white font-extrabold text-[11px] sm:text-sm px-2 sm:px-2.5 py-1.5 rounded-xl shadow-lg transition flex items-center gap-1 transform active:scale-95 border border-red-400/40"
+                >
+                  <MdLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="hidden sm:inline">Disconnect</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsWalletModalOpen(true)}
+                className="bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 hover:from-amber-500 hover:to-yellow-600 text-black font-extrabold text-[11px] sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl shadow-lg transition flex items-center space-x-1 sm:space-x-1.5 transform active:scale-95"
+              >
+                <MdAccountBalanceWallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black shrink-0" />
+                <span>Connect</span>
+              </button>
+            )}
           </div>
         </header>
 

@@ -9,6 +9,7 @@ import {
   MdConfirmationNumber,
   MdAccountBalanceWallet,
   MdStars,
+  MdLogout,
 } from "react-icons/md";
 import { UserSessionData } from "./WalletAuth";
 
@@ -16,12 +17,14 @@ interface BurgerMenuProps {
   activePage: "arena" | "about" | "settings" | "timeline";
   onSelectPage: (page: "arena" | "about" | "settings" | "timeline") => void;
   userSession: UserSessionData | null;
+  onLogout: () => void;
 }
 
 export const BurgerMenu: React.FC<BurgerMenuProps> = ({
   activePage,
   onSelectPage,
   userSession,
+  onLogout,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -127,6 +130,13 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   {userSession.availableTickets}
                 </span>
               </div>
+              <button
+                onClick={() => { onLogout(); setIsOpen(false); }}
+                className="w-full mt-1 flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/30"
+              >
+                <MdLogout className="w-4 h-4" />
+                Disconnect Wallet
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -186,9 +196,18 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         </nav>
 
         {/* Drawer Footer */}
-        <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300">
+        <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300 space-y-2">
+          {userSession && (
+            <button
+              onClick={() => { onLogout(); setIsOpen(false); }}
+              className="w-full flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/30"
+            >
+              <MdLogout className="w-4 h-4" />
+              Logout / Disconnect Wallet
+            </button>
+          )}
           <div>FACE BET • Face-to-Face P2P Arena</div>
-          <div className="text-purple-300 mt-0.5">Base & ARC Smart Contracts</div>
+          <div className="text-purple-300">Base &amp; ARC Smart Contracts</div>
         </div>
       </div>
     </>
