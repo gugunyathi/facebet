@@ -9,7 +9,7 @@ interface BillingDashboardProps {
 }
 
 // Vault treasury wallet address for receiving game ticket payments on Base
-const TREASURY_WALLET_ADDRESS = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
+const TREASURY_WALLET_ADDRESS = "0x1094811bA281Aa46F373Cf2Ed305ce0002d287ab";
 
 export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, userWallet, activeNetwork, onPaymentComplete }) => {
   const [fiatEmail, setFiatEmail] = useState("");

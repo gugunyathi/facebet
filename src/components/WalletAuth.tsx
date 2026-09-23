@@ -34,13 +34,22 @@ interface WalletAuthProps {
   onBuyTicketsSuccess?: (tickets: number) => void;
 }
 
-// Base Network Chain Config
+// Base Mainnet Chain Config
 const BASE_CHAIN = {
   chainId: "0x2105", // 8453
   chainName: "Base Mainnet",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: ["https://mainnet.base.org"],
   blockExplorerUrls: ["https://basescan.org"],
+};
+
+// Base Sepolia Testnet Chain Config
+const BASE_SEPOLIA_CHAIN = {
+  chainId: "0x14a34", // 84532
+  chainName: "Base Sepolia Testnet",
+  nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: ["https://sepolia.base.org"],
+  blockExplorerUrls: ["https://sepolia.basescan.org"],
 };
 
 // ARC Network Chain Config

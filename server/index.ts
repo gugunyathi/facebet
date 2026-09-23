@@ -17,7 +17,7 @@ import { UserSession } from "./models/UserSession";
 import { UserActivity, inMemoryUserActivities } from "./models/UserActivity";
 import { TimelineEvent, inMemoryTimelineEvents } from "./models/TimelineEvent";
 import { evaluateLiveFrame } from "./services/geminiEngine";
-import { fetchOnChainPotInfo } from "./services/contractBridge";
+import { fetchOnChainPotInfo, awardPrizeOnChain, SupportedNetwork } from "./services/contractBridge";
 import { FeedEngine, memoryFeedItems } from "./services/feedEngine";
 import { FeedItem } from "./models/FeedItem";
 import { TicketQueue } from "./models/TicketQueue";
@@ -856,16 +856,20 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
-  // GET /api/onchain-pot endpoint
+  // GET /api/onchain-pot endpoint — query any supported network's escrow contract
+  // Query params: ?network=base | base-sepolia | arc | arc-testnet
   app.get("/api/onchain-pot", async (req: Request, res: Response) => {
     try {
-      const isTestnet = req.query.testnet === 'true';
-      const info = await fetchOnChainPotInfo(isTestnet);
+      const networkParam = (req.query.network as string) || "base";
+      // Legacy testnet=true param still works
+      const resolvedNetwork = (req.query.testnet === "true" ? "base-sepolia" : networkParam) as any;
+      const info = await fetchOnChainPotInfo(resolvedNetwork);
       return res.json(info);
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
+
 
   // POST /api/evaluate-frame endpoint
   app.post("/api/evaluate-frame", async (req: Request, res: Response) => {
@@ -1212,6 +1216,32 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/contract/stats?network=base|base-sepolia|arc|arc-testnet
+  app.get("/api/contract/stats", async (req: Request, res: Response) => {
+    try {
+      const network = (req.query.network as SupportedNetwork) || "base";
+      const stats = await fetchOnChainPotInfo(network);
+      return res.json(stats);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/contract/award-prize (Backend/Owner trigger on AI confirmed win)
+  app.post("/api/contract/award-prize", async (req: Request, res: Response) => {
+    try {
+      const { winnerAddress, aiReason, network = "base" } = req.body || {};
+      if (!winnerAddress || !aiReason) {
+        return res.status(400).json({ error: "Missing winnerAddress or aiReason" });
+      }
+
+      const result = await awardPrizeOnChain(winnerAddress, aiReason, network as SupportedNetwork);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 

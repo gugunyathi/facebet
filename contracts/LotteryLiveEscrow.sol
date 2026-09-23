@@ -14,6 +14,7 @@ contract LotteryLiveEscrow {
     event TicketPurchased(address indexed player, uint256 count, uint256 timestamp);
     event PrizeAwarded(address indexed winner, uint256 amount, string aiReason);
     event RolloverUpdated(uint256 newTotal);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the platform operator can call this.");
@@ -67,4 +68,13 @@ contract LotteryLiveEscrow {
     function getGameStats() external view returns (uint256 currentPot, uint256 currentPlatformFees) {
         return (rolloverPot, platformBalance);
     }
+
+    // Transfer ownership to a new address (e.g., a multisig or updated operator key)
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner cannot be zero address.");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    receive() external payable {}
 }

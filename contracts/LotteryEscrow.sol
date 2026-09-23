@@ -10,6 +10,7 @@ contract LotteryEscrow {
     event DepositLogged(address indexed player, uint256 amount, string txId);
     event PrizeDistributed(address indexed winner, uint256 payoutAmount);
     event RolloverExecuted(uint256 currentTotalPool);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the game authority can invoke this execution.");
@@ -58,6 +59,13 @@ contract LotteryEscrow {
         uint256 amount = aiFundingPool;
         aiFundingPool = 0;
         targetWallet.transfer(amount);
+    }
+
+    // Transfer ownership to a new address (e.g., a multisig or updated operator key)
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner cannot be zero address.");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
     }
 
     receive() external payable {}
