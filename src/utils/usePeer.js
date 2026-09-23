@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import useWebSocketRaw, { ReadyState } from "react-use-websocket";
 
@@ -6,7 +6,7 @@ const useWebSocket = typeof useWebSocketRaw === "function"
   ? useWebSocketRaw
   : (useWebSocketRaw?.default || useWebSocketRaw);
 import { log } from "@/utils/helpers";
-import { HEARTBEAT, MESSAGE_EVENTS, WS_URL, peer } from "@/utils/constants";
+import { HEARTBEAT, MESSAGE_EVENTS, WS_URL, peer, API_URL } from "@/utils/constants";
 import { addMessage, clearMessages } from "@/features/messaging/messagingSlice";
 import {
   setError,
@@ -79,6 +79,8 @@ export default function usePeer() {
   const [userSession, setUserSession] = useState(null);
   const [isSpectator, setIsSpectator] = useState(true);
   const [mediaStream, setMediaStream] = useState(null);
+  // State for remote stream — triggers React re-render when WebRTC stream arrives
+  const [remoteMediaStream, setRemoteMediaStream] = useState(null);
 
   const localStream = useRef();
   const remoteStream = useRef();
@@ -87,6 +89,14 @@ export default function usePeer() {
   const peerConnectionRef = useRef();
   const dataConnectionRef = useRef();
   const mediaConnectionRef = useRef();
+
+  // Track peer ID and readyState inside callbacks without stale closures
+  const myPeerIdRef = useRef(null);
+  const readyStateRef = useRef(null);
+  const requeueTimerRef = useRef(null);
+  const sendMessageRef = useRef(null);
+
+  useEffect(() => { myPeerIdRef.current = myPeerId; }, [myPeerId]);
 
   useEffect(() => {
     // Automatically start video stream on mount if not already started
@@ -113,6 +123,37 @@ export default function usePeer() {
       log("WebSocket connection note:", e);
     },
   });
+
+  // Keep refs in sync so callbacks always have fresh values
+  useEffect(() => { readyStateRef.current = readyState; }, [readyState]);
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+
+  // Deduct a ticket from the backend (fire-and-forget)
+  const deductTicket = useCallback(async (peerId) => {
+    if (!peerId) return;
+    try {
+      await fetch(`${API_URL}/api/queue/deduct-ticket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ peerId }),
+      });
+    } catch {
+      // non-critical
+    }
+  }, []);
+
+  // Auto re-queue after a match so 2 players can keep betting against each other
+  const scheduleRequeue = useCallback((peerId) => {
+    if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
+    requeueTimerRef.current = setTimeout(() => {
+      if (peerId && readyStateRef.current === ReadyState.OPEN && sendMessageRef.current) {
+        log("Auto re-queueing after match end...");
+        deductTicket(peerId);
+        dispatch(setWaitingForMatch(true));
+        sendMessageRef.current(JSON.stringify({ event: MESSAGE_EVENTS.JOIN, id: peerId }));
+      }
+    }, 2000);
+  }, [dispatch, deductTicket]);
 
   useEffect(() => {
     if (peer.id) {
@@ -193,20 +234,24 @@ export default function usePeer() {
 
           if (isCaller) {
             log("Calling...");
-            const currentStream = localStream.current?.srcObject;
+            const currentStream = mediaStreamRef.current;
             if (currentStream) {
               try {
                 const call = peer.call(id, currentStream);
 
                 call.on("stream", (stream) => {
+                  log("Remote stream received (caller side)");
+                  // Update BOTH the ref AND the state — state triggers re-render
                   if (remoteStream.current) {
                     remoteStream.current.srcObject = stream;
                     remoteStream.current.play?.().catch(() => {});
                   }
+                  setRemoteMediaStream(stream);
                 });
 
                 call.on("close", () => {
                   log("Call closed");
+                  setRemoteMediaStream(null);
                 });
 
                 call.on("error", (err) => {
@@ -222,7 +267,7 @@ export default function usePeer() {
 
           peer.on("call", (call) => {
             try {
-              const currentStream = localStream.current?.srcObject;
+              const currentStream = mediaStreamRef.current;
               if (currentStream) {
                 call.answer(currentStream);
               } else {
@@ -230,14 +275,18 @@ export default function usePeer() {
               }
 
               call.on("stream", (stream) => {
+                log("Remote stream received (answerer side)");
+                // Update BOTH the ref AND the state — state triggers re-render
                 if (remoteStream.current) {
                   remoteStream.current.srcObject = stream;
                   remoteStream.current.play?.().catch(() => {});
                 }
+                setRemoteMediaStream(stream);
               });
 
               call.on("close", () => {
                 log("Remote Call closed");
+                setRemoteMediaStream(null);
               });
 
               call.on("error", (err) => {
@@ -261,11 +310,15 @@ export default function usePeer() {
           });
 
           dataConnection.on("close", () => {
-            log("Connection closed");
+            log("Connection closed — scheduling re-queue");
             dispatch(clearMessages());
-            sendMessage(
-              JSON.stringify({ event: MESSAGE_EVENTS.SKIP, id: myPeerId })
-            );
+            // Clear remote stream on disconnect
+            setRemoteMediaStream(null);
+            if (remoteStream.current) {
+              remoteStream.current.srcObject = null;
+            }
+            // Auto re-queue so 2 players can keep betting against each other
+            scheduleRequeue(myPeerIdRef.current);
           });
 
           dataConnectionRef.current = dataConnection;
@@ -280,22 +333,28 @@ export default function usePeer() {
         if (remoteStream.current?.srcObject) {
           remoteStream.current.srcObject = null;
         }
+        setRemoteMediaStream(null);
         dispatch(setWaitingForMatch(true));
       }
     }
-  }, [lastMessage, dispatch, myPeerId, sendMessage]);
+  }, [lastMessage, dispatch, scheduleRequeue]);
 
   async function startVideoStream() {
     dispatch(setLoading(true));
-    
-    // Check if we already have a valid real camera stream
+
+    // Guard: if we already have an active live camera track, reuse it
     if (
-      mediaStreamRef.current && 
+      mediaStreamRef.current &&
       mediaStreamRef.current.getVideoTracks().length > 0 &&
-      mediaStreamRef.current.getVideoTracks()[0].label !== "" &&
+      mediaStreamRef.current.getVideoTracks()[0].readyState === "live" &&
       !mediaStreamRef.current.getVideoTracks()[0].label.includes("canvas")
     ) {
       log("Camera already active, reusing existing stream.");
+      if (localStream.current && localStream.current.srcObject !== mediaStreamRef.current) {
+        localStream.current.muted = true;
+        localStream.current.srcObject = mediaStreamRef.current;
+        localStream.current.play?.().catch(() => {});
+      }
       dispatch(setLoading(false));
       dispatch(setStarted(true));
       return;
@@ -406,6 +465,7 @@ export default function usePeer() {
 
   return {
     remoteStream,
+    remoteMediaStream,
     localStream,
     mediaStream: mediaStream || mediaStreamRef.current,
     getMediaStream: () => mediaStreamRef.current,

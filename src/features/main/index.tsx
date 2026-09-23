@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { pay } from "@base-org/account";
 import { LocalSide } from "./LocalSide";
 import { RemoteSide } from "./RemoteSide";
-import { VideoProvider } from "@/utils/constants";
+import { VideoProvider, API_URL } from "@/utils/constants";
 import usePeer from "@/utils/usePeer";
 import { DuelModule } from "@/components/DuelModule";
 
@@ -42,7 +42,7 @@ const Main: React.FC<MainProps> = ({
 
       const txHash = payment.id || `0x_base_pay_${Date.now()}`;
       
-      const response = await fetch('/api/buy-tickets', {
+      const response = await fetch(`${API_URL}/api/buy-tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

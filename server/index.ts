@@ -1225,8 +1225,71 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
+  // POST /api/queue/deduct-ticket — called by frontend after each auto re-queue
+  app.post("/api/queue/deduct-ticket", async (req: Request, res: Response) => {
+    try {
+      const { peerId } = req.body || {};
+      if (!peerId) return res.status(400).json({ error: "Missing peerId" });
+
+      let remainingTickets = 0;
+
+      if (isMongoConnected) {
+        try {
+          const session = await (UserSession as any).findOneAndUpdate(
+            { peerId, availableTickets: { $gt: 0 } },
+            { $inc: { availableTickets: -1 } },
+            { new: true }
+          );
+          if (session) remainingTickets = session.availableTickets;
+        } catch {
+          const existing = memorySessions.get(peerId);
+          if (existing && existing.availableTickets > 0) {
+            existing.availableTickets -= 1;
+            remainingTickets = existing.availableTickets;
+          }
+        }
+      } else {
+        const existing = memorySessions.get(peerId);
+        if (existing && existing.availableTickets > 0) {
+          existing.availableTickets -= 1;
+          remainingTickets = existing.availableTickets;
+        }
+      }
+
+      return res.json({ success: true, remainingTickets });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/queue/status/:peerId — returns ticket count for a user
+  app.get("/api/queue/status/:peerId", async (req: Request, res: Response) => {
+    try {
+      const { peerId } = req.params;
+      let availableTickets = 0;
+
+      if (isMongoConnected) {
+        try {
+          const session = await (UserSession as any).findOne({ peerId });
+          if (session) availableTickets = session.availableTickets || 0;
+        } catch {
+          const mem = memorySessions.get(peerId);
+          if (mem) availableTickets = mem.availableTickets || 0;
+        }
+      } else {
+        const mem = memorySessions.get(peerId);
+        if (mem) availableTickets = mem.availableTickets || 0;
+      }
+
+      return res.json({ peerId, availableTickets, canPlay: availableTickets > 0 });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // GET /api/contract/stats?network=base|base-sepolia|arc|arc-testnet
   app.get("/api/contract/stats", async (req: Request, res: Response) => {
+
     try {
       const network = (req.query.network as SupportedNetwork) || "base";
       const stats = await fetchOnChainPotInfo(network);

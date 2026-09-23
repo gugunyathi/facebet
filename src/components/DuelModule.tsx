@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { VideoProvider } from '@/utils/constants';
+import { VideoProvider, API_URL } from '@/utils/constants';
 import { capturePlayerFrame } from '@/services/videoCapture';
 
 interface DuelModuleProps {
@@ -41,7 +41,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
     setChatLog(["Searching global multichain state maps for opponents..."]);
 
     try {
-      const response = await fetch('/api/duel/matchmake', {
+      const response = await fetch(`${API_URL}/api/duel/matchmake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,7 +163,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
       const capturedFrame = capturePlayerFrame("p1LocalDuelView");
 
       // Call evaluate-frame endpoint
-      fetch('/api/evaluate-frame', {
+      fetch(`${API_URL}/api/evaluate-frame`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

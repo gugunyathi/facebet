@@ -10,7 +10,8 @@ export const RemoteSide = () => {
   const started = useSelector((state) => state.main.started);
   const loading = useSelector((state) => state.main.loading);
   const waiting = useSelector((state) => state.main.waitingForMatch);
-  const { remoteStream } = useContext(VideoProvider);
+  // Use remoteMediaStream (state) instead of remoteStream (ref) — triggers re-render when stream arrives
+  const { remoteStream, remoteMediaStream } = useContext(VideoProvider);
 
   function renderOverlay() {
     if (loading) {
@@ -29,7 +30,7 @@ export const RemoteSide = () => {
   }
 
   return (
-    <Side videoRef={remoteStream} isLocal={false}>
+    <Side videoRef={remoteStream} stream={remoteMediaStream} isLocal={false}>
       {renderOverlay()}
     </Side>
   );
