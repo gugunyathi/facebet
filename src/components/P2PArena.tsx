@@ -103,10 +103,14 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
           console.log("🎥 Remote P2P video stream received & bound to remoteVideoRef!");
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream;
-            remoteVideoRef.current.play().catch(() => {});
-          }
+          // FIX: 100ms delay ensures React has fully painted the dual video grid
+          // before we assign srcObject, preventing the silent null-ref stream drop.
+          setTimeout(() => {
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream;
+              remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+            }
+          }, 100);
         });
 
         setGameMode('PVP');
@@ -152,10 +156,14 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
       call.on('stream', (remoteStream: MediaStream) => {
         console.log("🎥 Remote opponent video stream attached to remoteVideoRef!");
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
-          remoteVideoRef.current.play().catch(() => {});
-        }
+        // FIX: 100ms delay ensures React has fully painted the dual video grid
+        // before we assign srcObject, preventing the silent null-ref stream drop.
+        setTimeout(() => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+          }
+        }, 100);
       });
 
       setGameMode('PVP');
@@ -352,6 +360,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
 
         {/* Right Side: Player 2 Grid + Celebration Overlay Interface */}
+        {/* FIX: The <video> element is ALWAYS mounted unconditionally so that remoteVideoRef.current */}
+        {/* is never null when PeerJS fires on('stream'). The AI hologram is an overlay on top. */}
         <div style={{
           background: '#000',
           borderRadius: '8px',
@@ -361,10 +371,22 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           minHeight: '280px',
           boxShadow: winnerId === 2 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
         }}>
-          {gameMode === 'PVP' || remoteVideoRef.current?.srcObject ? (
-            <video id="p2RemoteDuelView" ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center relative">
+
+          {/* Remote video element: ALWAYS in the DOM so the ref is always valid */}
+          <video
+            id="p2RemoteDuelView"
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+
+          {/* AI Hologram overlay: shown on top only when in PVAI mode and no live stream */}
+          {gameMode === 'PVAI' && !remoteVideoRef.current?.srcObject && (
+            <div
+              className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
+              style={{ position: 'absolute', inset: 0, zIndex: 5 }}
+            >
               <div className="w-16 h-16 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
                 <span className="text-3xl">🤖</span>
               </div>
@@ -374,6 +396,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               </div>
             </div>
           )}
+
           <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.75)', padding: '4px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
             ● OPPONENT (PLAYER 2)
           </div>
