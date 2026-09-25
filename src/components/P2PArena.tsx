@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { VideoProvider, API_URL, peer as globalPeer } from '@/utils/constants';
+import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
 interface P2PArenaProps {
@@ -195,12 +195,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   // Listen for WebSocket real-time Arena state updates and P2P_MATCH_FOUND events
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
     let socket: WebSocket | null = null;
 
     try {
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(WS_URL);
       socketRef.current = socket;
 
       socket.onopen = () => {

@@ -31,18 +31,14 @@ peer.on("error", (err) => {
   }
 });
 
-const isSecure =
-  typeof window !== "undefined" && window.location.protocol === "https:";
-const wsProtocol = isSecure ? "wss:" : "ws:";
-const defaultWsHost =
-  typeof window !== "undefined" ? window.location.host : "localhost:3000";
+export const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")
+).replace(/\/+$/, "");
 
 export const WS_URL =
-  import.meta.env.VITE_WS_REMOTE_URL || `${wsProtocol}//${defaultWsHost}`;
-
-export const API_URL = (
-  import.meta.env.VITE_API_URL || WS_URL.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://")
-).replace(/\/+$/, "");
+  import.meta.env.VITE_WS_REMOTE_URL ||
+  API_URL.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
 
 export const HEARTBEAT = {
   message: "ping",
