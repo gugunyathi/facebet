@@ -35,19 +35,20 @@
   - Built-in multi-region STUN/ICE relay servers (`Google`, `Twilio`) for seamless connectivity behind strict firewalls and mobile NATs.
 
 ### 📜 Smart Contracts & On-Chain Escrow
-- **LotteryLiveEscrow.sol**: Solidity escrow contract governing ticket pool deposits, 85% rollover prize pool allocation, 15% platform fee splits, and `transferOwnership` governance.
+- **LotteryLiveEscrow.sol & LotteryEscrow.sol**: Solidity escrow contracts governing ticket pool deposits, 85% rollover prize pool allocation, 15% platform fee splits, and `transferOwnership` governance.
+- **Deployed on ARC Network**: Live on ARC Mainnet (5042) and ARC Testnet (5042002).
 - **Contract Service Bridge (`contractBridge.ts`)**: Real-time on-chain pot queries via Viem (`GET /api/onchain-pot`) and automated prize payouts (`awardPrizeOnChain`).
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Lucide & React Icons.
-- **Web3 & Base SDKs**: `@base-org/account`, `@base-org/account-ui`, `viem`, `ethers`.
+- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Lucide & React Icons. (Deployed on Vercel)
+- **Web3 & SDKs**: `@base-org/account`, `@base-org/account-ui`, `viem`, `ethers`, Hardhat.
 - **AI Engine**: `@google/genai` (Gemini Multimodal Live Frame Analysis).
-- **WebRTC & Real-Time**: PeerJS, WebSockets, Canvas Stream Capture API.
-- **Backend Server**: Node.js, Express, TypeScript, Mongoose / In-Memory Session Engine.
-- **Smart Contracts**: Solidity `^0.8.20` (`LotteryLiveEscrow.sol`).
+- **WebRTC & Real-Time**: PeerJS, WebSockets, Canvas Stream Capture API (Optimized single-stream re-use).
+- **Backend Server**: Node.js, Express, TypeScript, Mongoose / In-Memory Session Engine. (Deployed on Render)
+- **Smart Contracts**: Solidity `^0.8.20` (`LotteryLiveEscrow.sol`, `LotteryEscrow.sol`).
 
 ---
 
@@ -71,6 +72,9 @@ PORT=3000
 MONGODB_URI=mongodb://localhost:27017/facebet
 GEMINI_API_KEY=your_gemini_api_key_here
 PAYSTACK_SECRET_KEY=sk_test_your_paystack_key
+VITE_API_URL=https://facebet.onrender.com
+CONTRACT_ADDRESS_ARC_TESTNET=your_arc_testnet_contract_address
+CONTRACT_ADDRESS_ARC_MAINNET=your_arc_mainnet_contract_address
 ```
 
 ### 3. Start Development Server
