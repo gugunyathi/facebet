@@ -51,9 +51,9 @@ async function deployToNetwork(networkName, rpcUrl, chainIdExpected) {
   console.log(`Starting deployment to ${networkName}...`);
   console.log("=".repeat(60));
 
-  const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+  const privateKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.OPERATOR_PRIVATE_KEY;
   if (!privateKey) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is missing in .env file.");
+    throw new Error("DEPLOYER_PRIVATE_KEY or OPERATOR_PRIVATE_KEY is missing in .env file.");
   }
 
   const cleanKey = privateKey.trim().replace(/^0x/, "");
