@@ -183,7 +183,8 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
       const capturedFrame = capturePlayerFrame("p1LocalDuelView");
 
       // Call evaluate-frame endpoint
-      fetch(`${API_URL}/api/evaluate-frame`, {
+      const endpoint = API_URL ? `${API_URL}/api/evaluate-frame` : '/api/evaluate-frame';
+      fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

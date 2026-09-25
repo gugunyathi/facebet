@@ -148,7 +148,8 @@ export async function startAppServer() {
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   }));
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // Serve static clip media files and public directory assets
   app.use('/clips', express.static(path.join(process.cwd(), 'public', 'clips')));

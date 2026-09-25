@@ -32,6 +32,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isDualTestMode, setIsDualTestMode] = useState<boolean>(false);
+  const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
   const [autoBattle, setAutoBattle] = useState<boolean>(true);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
 
@@ -63,6 +64,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     if (stream && remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = stream;
       remoteVideoRef.current.play().catch(() => {});
+      setHasRemoteStream(true);
       setGameMode('PVP');
       if (matchStatus !== 'LIVE') {
         setMatchStatus('LIVE');
@@ -176,6 +178,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = remoteStream;
               remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+              setHasRemoteStream(true);
             }
           }, 100);
         });
@@ -229,6 +232,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
             remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+            setHasRemoteStream(true);
           }
         }, 100);
       });
@@ -249,6 +253,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     if (!userSession && onRequireAuth) {
       onRequireAuth();
       return;
+    }
+
+    if (!isDualTestMode) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+      setHasRemoteStream(false);
     }
 
     setMatchStatus("QUEUEING");
@@ -328,7 +339,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.55).split(',')[1];
+      return canvas.toDataURL('image/jpeg', 0.40).split(',')[1];
     };
 
     const p1Frame = captureFrame(localVideoRef.current) || "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
@@ -336,7 +347,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
     if (p1Frame && p2Frame) {
       try {
-        const response = await fetch(`${API_URL}/api/evaluate-duel`, {
+        const endpoint = API_URL ? `${API_URL}/api/evaluate-duel` : '/api/evaluate-duel';
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -449,6 +461,39 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </h3>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Solo Mirror Test Toggle Button */}
+          <button
+            onClick={() => {
+              if (isDualTestMode) {
+                setIsDualTestMode(false);
+                if (remoteVideoRef.current) {
+                  remoteVideoRef.current.srcObject = null;
+                }
+                setHasRemoteStream(false);
+                setChatLog(prev => [...prev, "🔍 Returned to Real P2P Searching Radar."]);
+              } else {
+                setIsDualTestMode(true);
+                if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
+                  remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
+                  remoteVideoRef.current.play().catch(() => {});
+                  setHasRemoteStream(true);
+                  setGameMode('PVP');
+                  setMatchStatus('LIVE');
+                  setCountdown(10);
+                  setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
+                }
+              }
+            }}
+            className={`text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border font-bold transition flex items-center gap-0.5 cursor-pointer shrink-0 ${
+              isDualTestMode
+                ? "bg-blue-600 text-white border-blue-400/60 shadow-lg"
+                : "bg-white/10 hover:bg-white/20 text-gray-200 border-white/20"
+            }`}
+            title="Toggle solo mirror test mode"
+          >
+            <span>{isDualTestMode ? "📹 Mirror ON" : "📹 Solo Mirror"}</span>
+          </button>
+
           {/* Layout Orientation Switcher (Vertical Stack vs Horizontal Side-by-Side) */}
           <button
             onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
@@ -533,7 +578,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           />
 
           {/* Player 2 Stream Overlay: Active Human Search Radar or AI Bot fallback if requested */}
-          {(!remoteVideoRef.current?.srcObject && !isDualTestMode) && (
+          {(!hasRemoteStream && !isDualTestMode) && (
             <div
               className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
               style={{ position: 'absolute', inset: 0, zIndex: 5 }}
