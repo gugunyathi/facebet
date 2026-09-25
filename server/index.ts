@@ -569,6 +569,172 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
+  const CIRCLE_API_KEY = process.env.CIRCLE_API_KEY || process.env.ARC_ONRAMP_API_KEY || "";
+
+  // POST /api/onramp/sessions - Mint Arc Onramp session via Circle App Kit / Onramp API
+  app.post("/api/onramp/sessions", async (req: Request, res: Response) => {
+    try {
+      const { appUserId, destinationAddress, currency, amountUSD, referrerDomain } = req.body || {};
+
+      if (!destinationAddress) {
+        return res.status(400).json({ error: "Missing required Arc destination wallet address." });
+      }
+
+      let sessionToken = `arc_session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      if (CIRCLE_API_KEY) {
+        try {
+          const circleRes = await fetch("https://api.circle.com/v1/onramp/sessions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${CIRCLE_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              appUserId: appUserId || destinationAddress,
+              destinationAddress,
+              destinationChain: "arc",
+              currency: currency || "USDC",
+              amountUSD: amountUSD || 10.00,
+              referrerDomain: referrerDomain || "localhost"
+            })
+          });
+
+          if (circleRes.ok) {
+            const circleData = await circleRes.json();
+            if (circleData?.sessionToken || circleData?.data?.sessionToken) {
+              sessionToken = circleData.sessionToken || circleData.data.sessionToken;
+            }
+          }
+        } catch (circleErr) {
+          console.warn("Circle Onramp API call failed, using session fallback:", circleErr);
+        }
+      }
+
+      const ledgerRecord = {
+        userId: appUserId || destinationAddress,
+        walletAddress: destinationAddress,
+        method: 'arc_onramp',
+        network: 'arc',
+        referenceOrHash: sessionToken,
+        amountUSD: amountUSD || 10.00,
+        currency: currency || 'USDC',
+        ticketsGranted: Math.max(10, Math.floor((amountUSD || 10.00) * 10)),
+        status: 'pending',
+        createdAt: new Date()
+      };
+
+      if (isMongoConnected) {
+        try {
+          await (PaymentLedger as any).create(ledgerRecord);
+        } catch {
+          inMemoryPaymentLedger.push(ledgerRecord);
+        }
+      } else {
+        inMemoryPaymentLedger.push(ledgerRecord);
+      }
+
+      return res.status(200).json({
+        success: true,
+        sessionToken,
+        destinationAddress,
+        currency: currency || "USDC",
+        amountUSD: amountUSD || 10.00,
+        expiresInSeconds: 1800
+      });
+    } catch (onrampErr: any) {
+      console.error("Arc Onramp session error:", onrampErr);
+      return res.status(500).json({ error: onrampErr.message || "Failed to create Arc Onramp session." });
+    }
+  });
+
+  // POST /api/onramp/settle - Settle deposit and grant user tickets on Arc
+  app.post("/api/onramp/settle", async (req: Request, res: Response) => {
+    try {
+      const { appUserId, destinationAddress, amountUSD, currency, txHash } = req.body || {};
+
+      const destAddr = destinationAddress || appUserId;
+      if (!destAddr) {
+        return res.status(400).json({ error: "Missing required destination wallet address." });
+      }
+
+      const usdVal = amountUSD || 10.00;
+      const ticketsGranted = Math.max(10, Math.floor(usdVal * 10));
+      const hash = txHash || `0x_arc_onramp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+      const ledgerRecord = {
+        userId: appUserId || destAddr,
+        walletAddress: destAddr,
+        method: 'arc_onramp',
+        network: 'arc',
+        referenceOrHash: hash,
+        amountUSD: usdVal,
+        currency: currency || 'USDC',
+        ticketsGranted,
+        status: 'success',
+        createdAt: new Date()
+      };
+
+      if (isMongoConnected) {
+        try {
+          await (PaymentLedger as any).create(ledgerRecord);
+        } catch {
+          inMemoryPaymentLedger.push(ledgerRecord);
+        }
+      } else {
+        inMemoryPaymentLedger.push(ledgerRecord);
+      }
+
+      // Grant tickets in queue worker
+      const tickets = Array.from({ length: ticketsGranted }).map((_, index) => ({
+        userId: appUserId || destAddr,
+        walletAddress: destAddr,
+        network: 'arc' as const,
+        txHash: `${hash}_t${index}`,
+        ticketIndex: index + 1,
+        timestamp: new Date(),
+        loginDuration: 300,
+        txCount: 1,
+        status: 'queued' as const,
+        createdAt: new Date()
+      }));
+
+      if (isMongoConnected) {
+        try {
+          await (TicketQueue as any).insertMany(tickets);
+        } catch {
+          inMemoryTickets.push(...tickets);
+        }
+      } else {
+        inMemoryTickets.push(...tickets);
+      }
+
+      // Update user session tickets if active
+      let userSession = null;
+      if (isMongoConnected) {
+        try {
+          userSession = await (UserSession as any).findOne({ peerId: destAddr });
+          if (userSession) {
+            userSession.availableTickets = (userSession.availableTickets || 0) + ticketsGranted;
+            await userSession.save();
+          }
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        ticketsGranted,
+        amountUSD: usdVal,
+        currency: currency || 'USDC',
+        walletAddress: destAddr,
+        txHash: hash
+      });
+    } catch (settleErr: any) {
+      console.error("Onramp settle error:", settleErr);
+      return res.status(500).json({ error: settleErr.message || "Deposit settlement failed." });
+    }
+  });
+
   // Global Real-Time Arena King-of-the-Hill Queue State
   interface ArenaQueuedPlayer {
     userId: string;

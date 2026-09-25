@@ -64,6 +64,34 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   }, [targetWords.length]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const p1VideoRef = useRef<HTMLVideoElement>(null);
+  const p2VideoRef = useRef<HTMLVideoElement>(null);
+
+  // Multi-camera device state
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCamId, setSelectedCamId] = useState<string>('');
+
+  useEffect(() => {
+    let isSubscribed = true;
+    const detectCameras = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter(d => d.kind === 'videoinput');
+          if (isSubscribed) {
+            setVideoDevices(videoInputs);
+            if (videoInputs.length > 0 && !selectedCamId) {
+              setSelectedCamId(videoInputs[0].deviceId);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Could not list video inputs in DuelModule:", e);
+      }
+    };
+    detectCameras();
+    return () => { isSubscribed = false; };
+  }, []);
 
   const activeUserId = userSession?.peerId || currentPeerId;
   const activeWallet = userSession?.walletAddress || walletAddress;
@@ -132,17 +160,26 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
     let isSubscribed = true;
 
     const resolveStream = async () => {
-      let stream = videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
-      if (!stream && videoContext?.startVideoStream) {
-        await videoContext.startVideoStream();
-        stream = videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
-      }
-
-      if (!stream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      let stream: MediaStream | null = null;
+      if (selectedCamId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: selectedCamId } },
+            audio: false
+          });
         } catch {
-          // Camera permission or device fallback
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+      } else {
+        stream = videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
+        if (!stream && videoContext?.startVideoStream) {
+          await videoContext.startVideoStream();
+          stream = videoContext?.mediaStream || videoContext?.getMediaStream?.() || videoContext?.localStream?.current?.srcObject;
+        }
+        if (!stream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          } catch {}
         }
       }
 
@@ -155,11 +192,11 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
     return () => {
       isSubscribed = false;
     };
-  }, [videoContext]);
+  }, [selectedCamId, videoContext]);
 
-  // Bind local camera stream to p1LocalDuelView element safely
+  // Bind local camera stream to p1VideoRef element safely
   useEffect(() => {
-    const vidEl = document.getElementById("p1LocalDuelView") as HTMLVideoElement;
+    const vidEl = p1VideoRef.current || (document.getElementById("p1LocalDuelView") as HTMLVideoElement);
     if (vidEl) {
       vidEl.muted = true;
       vidEl.playsInline = true;
@@ -306,6 +343,24 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
         </h3>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Camera Selection Dropdown */}
+          {videoDevices.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10 shrink-0">
+              <span className="text-purple-300 font-bold hidden sm:inline">📷 Cam:</span>
+              <select
+                value={selectedCamId}
+                onChange={(e) => setSelectedCamId(e.target.value)}
+                className="bg-black text-gray-200 text-[9px] sm:text-[10px] rounded px-1 py-0.5 border border-purple-500/30 focus:outline-none"
+              >
+                {videoDevices.map((dev, i) => (
+                  <option key={dev.deviceId || i} value={dev.deviceId}>
+                    {dev.label ? dev.label.slice(0, 16) : `Camera ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Layout Orientation Switcher (Vertical Stack vs Horizontal Side-by-Side) */}
           <button
             onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
@@ -359,7 +414,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
               </div>
             </div>
 
-            <video id="p1LocalDuelView" autoPlay muted playsInline className="w-full h-full object-cover" />
+            <video id="p1LocalDuelView" ref={p1VideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
             <div className="absolute bottom-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-blue-400 border border-blue-500/40 shadow flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>LIVE CAMERA STREAM</span>
@@ -389,7 +444,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
               </div>
             </div>
             {gameMode === 'PVP' ? (
-              <video id="p2RemoteDuelView" autoPlay playsInline className="w-full h-full object-cover" />
+              <video id="p2RemoteDuelView" ref={p2VideoRef} autoPlay playsInline className="w-full h-full object-cover" />
             ) : (
               <div className="text-center p-3 w-full h-full flex flex-col items-center justify-center relative">
                 {/* Hologram Pulse Avatar Graphic */}

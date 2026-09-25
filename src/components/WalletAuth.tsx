@@ -5,11 +5,13 @@ import {
   MdErrorOutline,
   MdConfirmationNumber,
   MdFlashOn,
+  MdCreditCard,
 } from "react-icons/md";
 import { createBaseAccountSDK } from "@base-org/account";
 import { SignInWithBaseButton } from "@base-org/account-ui/react";
 import { useTransactionBridge } from "../hooks/useTransactionBridge";
 import { API_URL } from "../utils/constants";
+import { ArcOnrampWidget } from "./ArcOnrampWidget";
 
 declare global {
   interface Window {
@@ -71,6 +73,7 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
   const [loading, setLoading] = useState<"base" | "arc" | "metamask" | "buy" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isOnrampOpen, setIsOnrampOpen] = useState<boolean>(false);
 
   const connectWallet = async (network: "base" | "arc" | "metamask") => {
     setError(null);
@@ -324,7 +327,7 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="bg-purple-900/40 border border-purple-500/40 px-3 py-1.5 rounded-lg text-right">
                 <div className="text-[10px] text-gray-300 uppercase tracking-wider font-semibold">
                   Tickets
@@ -338,10 +341,18 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
               <button
                 onClick={buyTickets}
                 disabled={loading === "buy"}
-                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-bold text-xs px-3 py-2 rounded-lg shadow-lg hover:scale-105 transition active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-bold text-xs px-3 py-2 rounded-lg shadow-lg hover:scale-105 transition active:scale-95 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
               >
                 <MdFlashOn className="w-4 h-4" />
                 {loading === "buy" ? "Buying..." : "+10 Tickets ($1)"}
+              </button>
+
+              <button
+                onClick={() => setIsOnrampOpen(true)}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs px-3 py-2 rounded-lg shadow-lg hover:scale-105 transition active:scale-95 flex items-center gap-1 cursor-pointer"
+              >
+                <MdCreditCard className="w-4 h-4 text-purple-200" />
+                <span>Arc Fiat Onramp (USDC/EURC)</span>
               </button>
             </div>
           </div>
@@ -426,6 +437,19 @@ export const WalletAuth: React.FC<WalletAuthProps> = ({
           <span className="flex-1">{error}</span>
         </div>
       )}
+
+      {/* Arc Fiat Onramp Circle Widget Modal */}
+      <ArcOnrampWidget
+        isOpen={isOnrampOpen}
+        onClose={() => setIsOnrampOpen(false)}
+        userWalletAddress={userSession?.walletAddress}
+        appUserId={userSession?.peerId}
+        onDepositSettledSuccess={(ticketsAdded) => {
+          if (userSession && onBuyTicketsSuccess) {
+            onBuyTicketsSuccess((userSession.availableTickets || 0) + ticketsAdded);
+          }
+        }}
+      />
     </div>
   );
 };

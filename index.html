@@ -2,6 +2,22 @@
 <html lang="en">
 
 <head>
+  <script>
+    (function() {
+      try {
+        var origFetch = window.fetch;
+        var _fetch = typeof origFetch === 'function' ? origFetch.bind(window) : origFetch;
+        Object.defineProperty(window, 'fetch', {
+          configurable: true,
+          enumerable: true,
+          get: function() { return _fetch; },
+          set: function(val) { _fetch = val; }
+        });
+      } catch (e) {
+        console.warn("fetch property descriptor fix error:", e);
+      }
+    })();
+  </script>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />

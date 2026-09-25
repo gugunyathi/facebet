@@ -7,6 +7,8 @@ import { AboutPage } from "./pages/AboutPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TimelinePage } from "./pages/TimelinePage";
 import { WalletConnectModal } from "./components/WalletConnectModal";
+import { ArcOnrampWidget } from "./components/ArcOnrampWidget";
+import { ArcAppKitModal } from "./components/ArcAppKitModal";
 import { TrendTicker } from "./components/TrendTicker";
 import {
   MdConfirmationNumber,
@@ -15,6 +17,7 @@ import {
   MdGeneratingTokens,
   MdAccountBalanceWallet,
   MdLogout,
+  MdCreditCard,
 } from "react-icons/md";
 
 export function App() {
@@ -29,6 +32,8 @@ export function App() {
   });
   const [activePage, setActivePage] = useState<"arena" | "about" | "settings" | "timeline">("arena");
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [isArcOnrampOpen, setIsArcOnrampOpen] = useState(false);
+  const [isArcAppKitOpen, setIsArcAppKitOpen] = useState(false);
 
   const [selectedChain, setSelectedChain] = useState<'base' | 'arc'>(() => {
     if (userSession?.network === 'arc') return 'arc';
@@ -146,6 +151,26 @@ export function App() {
           </div>
 
           <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
+            {/* Arc Fiat Onramp Button */}
+            <button
+              onClick={() => setIsArcOnrampOpen(true)}
+              className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-extrabold text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl shadow-lg transition flex items-center space-x-1 transform active:scale-95 shrink-0 border border-purple-400/40 cursor-pointer"
+              title="Buy USDC/EURC on Arc with Fiat & Cards"
+            >
+              <MdCreditCard className="w-3.5 h-3.5 text-purple-200 shrink-0" />
+              <span>Arc Onramp</span>
+            </button>
+
+            {/* Arc App Kit Hub Button */}
+            <button
+              onClick={() => setIsArcAppKitOpen(true)}
+              className="bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-400/50 font-extrabold text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl shadow-md transition flex items-center space-x-1 transform active:scale-95 shrink-0 cursor-pointer"
+              title="Arc App Kit Hub (Bridge, Swap, Send, Earn)"
+            >
+              <MdAccountBalanceWallet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span>Arc Kit Hub</span>
+            </button>
+
             {/* Live Pool Banner */}
             <div className="hidden lg:flex items-center space-x-2 bg-purple-900/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">
               <MdGeneratingTokens className="w-4 h-4 text-amber-400 shrink-0" />
@@ -224,6 +249,25 @@ export function App() {
           userSession={userSession}
           onAuthSuccess={handleAuthSuccess}
           onBuyTicketsSuccess={handleBuyTickets}
+        />
+
+        {/* Arc Fiat Onramp Circle Widget Modal */}
+        <ArcOnrampWidget
+          isOpen={isArcOnrampOpen}
+          onClose={() => setIsArcOnrampOpen(false)}
+          userWalletAddress={userSession?.walletAddress}
+          appUserId={userSession?.peerId}
+          onDepositSettledSuccess={(ticketsAdded) => {
+            handleBuyTickets((userSession?.availableTickets || 0) + ticketsAdded);
+          }}
+        />
+
+        {/* Arc App Kit Hub Modal */}
+        <ArcAppKitModal
+          isOpen={isArcAppKitOpen}
+          onClose={() => setIsArcAppKitOpen(false)}
+          userWalletAddress={userSession?.walletAddress}
+          userSession={userSession}
         />
       </div>
     </AppLayout>

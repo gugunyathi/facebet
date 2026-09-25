@@ -122,9 +122,40 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   });
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const p1RemoteVideoRef = useRef<HTMLVideoElement>(null);
+  const p2RemoteVideoRef = useRef<HTMLVideoElement>(null);
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
+  const secondaryMediaStreamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Multi-camera input device state
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [p1DeviceId, setP1DeviceId] = useState<string>('');
+  const [p2DeviceId, setP2DeviceId] = useState<string>('');
+
+  // Enumerate video input devices on mount
+  useEffect(() => {
+    let isSubscribed = true;
+    const detectCameras = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter(d => d.kind === 'videoinput');
+          if (isSubscribed) {
+            setVideoDevices(videoInputs);
+            if (videoInputs.length > 0) {
+              if (!p1DeviceId) setP1DeviceId(videoInputs[0].deviceId);
+              if (!p2DeviceId) setP2DeviceId(videoInputs[1]?.deviceId || videoInputs[0].deviceId);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Could not list video input devices:", e);
+      }
+    };
+    detectCameras();
+    return () => { isSubscribed = false; };
+  }, []);
 
   const basePeerId = userSession?.peerId || currentPeerId || "guest";
   const activeUserId = `${basePeerId}_${tabSessionId}`;
@@ -145,12 +176,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
   };
 
-  // Sync videoContext remoteMediaStream directly to remoteVideoRef when WebRTC stream connects
+  // Sync videoContext remoteMediaStream directly to player remote video ref when WebRTC stream connects
   useEffect(() => {
     const stream = videoContext?.remoteMediaStream;
-    if (stream && remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = stream;
-      remoteVideoRef.current.play().catch(() => {});
+    const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
+    if (stream && targetRef) {
+      targetRef.srcObject = stream;
+      targetRef.play().catch(() => {});
       setHasRemoteStream(true);
       setGameMode('PVP');
       if (matchStatus !== 'LIVE') {
@@ -158,7 +190,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         setCountdown(10);
       }
     }
-  }, [videoContext?.remoteMediaStream]);
+  }, [videoContext?.remoteMediaStream, myRole]);
 
   // Listen for WebSocket real-time Arena state updates and P2P_MATCH_FOUND events
   useEffect(() => {
@@ -213,12 +245,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             const { player1PeerId, player2PeerId } = data;
             if (activeUserId === player1PeerId && player2PeerId) {
               setMyRole('PLAYER_1');
-              setChatLog(prev => [...prev, "👑 REIGNING KING! Securing WebRTC direct video line..."]);
+              setChatLog(prev => [...prev, "🔵 Player 1 Seat Claimed! Securing direct video line..."]);
               setGameMode('PVP');
               initiateP2PConnectionCall(player2PeerId);
             } else if (activeUserId === player2PeerId && player1PeerId) {
               setMyRole('PLAYER_2');
-              setChatLog(prev => [...prev, "⚔️ NEXT CHALLENGER CLAIMED! Securing WebRTC video line..."]);
+              setChatLog(prev => [...prev, "🔴 Player 2 Seat Claimed! Securing direct video line..."]);
               setGameMode('PVP');
               initiateP2PConnectionCall(player1PeerId);
             }
@@ -291,49 +323,82 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     setChatLog(prev => [...prev, "🚪 Left the Arena Queue."]);
   };
 
-  // Initialize and bind local camera media stream
+  // Dynamic stream resolution for selected P1 and P2 camera devices
   useEffect(() => {
     let isSubscribed = true;
 
-    const setupLocalStream = async () => {
-      let stream: MediaStream | null = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-      if (!stream && videoContext?.startVideoStream) {
-        await videoContext.startVideoStream();
-        stream = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-      }
-
-      if (!stream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } catch (err) {
-          console.warn("Camera access notice:", err);
+    const setupCameraStreams = async () => {
+      // 1. Setup P1 camera stream
+      try {
+        let stream1: MediaStream | null = null;
+        if (p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          try {
+            stream1 = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { exact: p1DeviceId } },
+              audio: false
+            });
+          } catch {
+            // Fallback if exact device ID fails
+            stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+        } else {
+          stream1 = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+          if (!stream1 && videoContext?.startVideoStream) {
+            await videoContext.startVideoStream();
+            stream1 = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+          }
+          if (!stream1 && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+            stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
         }
+
+        if (isSubscribed && stream1) {
+          activeMediaStreamRef.current = stream1;
+          if (localVideoRef.current) {
+            localVideoRef.current.muted = true;
+            localVideoRef.current.playsInline = true;
+            localVideoRef.current.srcObject = stream1;
+            localVideoRef.current.play().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn("P1 Camera stream setup note:", err);
       }
 
-      if (isSubscribed && stream) {
-        activeMediaStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.muted = true;
-          localVideoRef.current.playsInline = true;
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(() => {});
+      // 2. Setup separate P2 camera stream if a distinct second camera device is selected
+      if (p2DeviceId && p2DeviceId !== p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream2 = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: p2DeviceId } },
+            audio: false
+          });
+          if (isSubscribed && stream2) {
+            secondaryMediaStreamRef.current = stream2;
+            if (p2RemoteVideoRef.current) {
+              p2RemoteVideoRef.current.srcObject = stream2;
+              p2RemoteVideoRef.current.play().catch(() => {});
+              setHasRemoteStream(true);
+            }
+          }
+        } catch (err) {
+          console.warn("P2 Secondary Camera stream setup note:", err);
         }
       }
     };
 
-    setupLocalStream();
+    setupCameraStreams();
 
     return () => {
       isSubscribed = false;
     };
-  }, [videoContext]);
+  }, [p1DeviceId, p2DeviceId, videoContext]);
 
   // PeerJS Incoming Call Media Event Listener Loop
   useEffect(() => {
     if (!activePeer) return;
 
     const handleIncomingCall = (incomingCall: any) => {
-      console.log("📞 Incoming WebRTC video call received from Player 2 node...");
+      console.log("📞 Incoming WebRTC video call received...");
 
       const getStreamAndAnswer = async () => {
         let localStream = activeMediaStreamRef.current;
@@ -356,13 +421,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         }
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
-          console.log("🎥 Remote P2P video stream received & bound to remoteVideoRef!");
-          // FIX: 100ms delay ensures React has fully painted the dual video grid
-          // before we assign srcObject, preventing the silent null-ref stream drop.
+          console.log("🎥 Remote P2P video stream received & bound!");
           setTimeout(() => {
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream;
-              remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+            const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
+            if (targetRef) {
+              targetRef.srcObject = remoteStream;
+              targetRef.play().catch((e) => console.error("Autoplay blocked:", e));
               setHasRemoteStream(true);
             }
           }, 100);
@@ -384,7 +448,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     return () => {
       activePeer.off?.('call', handleIncomingCall);
     };
-  }, [activePeer]);
+  }, [activePeer, myRole]);
 
   // Outgoing P2P Connection Initiator
   const initiateP2PConnectionCall = (targetOpponentPeerId: string) => {
@@ -410,13 +474,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       const call = activePeer.call(targetOpponentPeerId, localStream);
 
       call.on('stream', (remoteStream: MediaStream) => {
-        console.log("🎥 Remote opponent video stream attached to remoteVideoRef!");
-        // FIX: 100ms delay ensures React has fully painted the dual video grid
-        // before we assign srcObject, preventing the silent null-ref stream drop.
+        console.log("🎥 Remote opponent video stream attached!");
         setTimeout(() => {
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream;
-            remoteVideoRef.current.play().catch((e) => console.error("Autoplay blocked:", e));
+          const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
+          if (targetRef) {
+            targetRef.srcObject = remoteStream;
+            targetRef.play().catch((e) => console.error("Autoplay blocked:", e));
             setHasRemoteStream(true);
           }
         }, 100);
@@ -441,9 +504,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
 
     if (!isDualTestMode) {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
+      if (p1RemoteVideoRef.current) p1RemoteVideoRef.current.srcObject = null;
+      if (p2RemoteVideoRef.current) p2RemoteVideoRef.current.srcObject = null;
       setHasRemoteStream(false);
     }
 
@@ -516,12 +578,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
   }, [countdown, gameMode, botData]);
 
-  // Dynamic Wallet & Name resolutions for Player 1 (King) and Player 2 (Challenger)
+  // Dynamic Wallet & Name resolutions for Player 1 and Player 2
   const p1WalletAddress = arenaState.king?.walletAddress || (myRole === 'PLAYER_1' ? activeWallet : "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
   const p2WalletAddress = arenaState.challenger?.walletAddress || (myRole === 'PLAYER_2' ? activeWallet : (gameMode === 'PVAI' ? "0x_AI_AGENT_HOLOGRAM_VAULT" : "0x391A2351CF2C8A4D1181f7e0B15a8dB56191a27e"));
 
-  const p1DisplayName = arenaState.king?.userName || (myRole === 'PLAYER_1' ? activeName : "Player 1 (Host)");
-  const p2DisplayName = arenaState.challenger?.userName || (myRole === 'PLAYER_2' ? activeName : (gameMode === 'PVAI' ? (botData?.name || "AI Hologram Boss") : "Player 2 (Challenger)"));
+  const p1DisplayName = arenaState.king?.userName || (myRole === 'PLAYER_1' ? activeName : "Player 1");
+  const p2DisplayName = arenaState.challenger?.userName || (myRole === 'PLAYER_2' ? activeName : (gameMode === 'PVAI' ? (botData?.name || "AI Hologram Boss") : "Player 2"));
 
   // Dual Frame Capture & On-Chain Evaluation Handler
   const handleDualFrameCaptureSubmit = async () => {
@@ -538,8 +600,11 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       return canvas.toDataURL('image/jpeg', 0.40).split(',')[1];
     };
 
-    const p1Frame = captureFrame(localVideoRef.current) || "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
-    const p2Frame = captureFrame(remoteVideoRef.current) || p1Frame;
+    const p1VideoEl = myRole === 'PLAYER_1' ? localVideoRef.current : p1RemoteVideoRef.current;
+    const p2VideoEl = myRole === 'PLAYER_2' ? localVideoRef.current : p2RemoteVideoRef.current;
+
+    const p1Frame = captureFrame(p1VideoEl) || "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+    const p2Frame = captureFrame(p2VideoEl) || p1Frame;
 
     if (p1Frame && p2Frame) {
       try {
@@ -659,26 +724,61 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </h3>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Camera Selection Controls (Multi-Camera support) */}
+          {videoDevices.length > 0 && (
+            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10 shrink-0">
+              <span className="text-purple-300 font-bold hidden md:inline">📷 Cam 1:</span>
+              <select
+                value={p1DeviceId}
+                onChange={(e) => setP1DeviceId(e.target.value)}
+                className="bg-black text-gray-200 text-[9px] sm:text-[10px] rounded px-1 py-0.5 border border-purple-500/30 focus:outline-none"
+              >
+                {videoDevices.map((dev, i) => (
+                  <option key={dev.deviceId || i} value={dev.deviceId}>
+                    {dev.label ? dev.label.slice(0, 16) : `Camera ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+
+              {videoDevices.length > 1 && (
+                <>
+                  <span className="text-rose-300 font-bold hidden md:inline ml-1">Cam 2:</span>
+                  <select
+                    value={p2DeviceId}
+                    onChange={(e) => setP2DeviceId(e.target.value)}
+                    className="bg-black text-gray-200 text-[9px] sm:text-[10px] rounded px-1 py-0.5 border border-rose-500/30 focus:outline-none"
+                  >
+                    {videoDevices.map((dev, i) => (
+                      <option key={dev.deviceId || i} value={dev.deviceId}>
+                        {dev.label ? dev.label.slice(0, 16) : `Camera ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Solo Mirror Test Toggle Button */}
           <button
             onClick={() => {
               if (isDualTestMode) {
                 setIsDualTestMode(false);
-                if (remoteVideoRef.current) {
-                  remoteVideoRef.current.srcObject = null;
+                if (p2RemoteVideoRef.current) {
+                  p2RemoteVideoRef.current.srcObject = null;
                 }
                 setHasRemoteStream(false);
                 setChatLog(prev => [...prev, "🔍 Returned to Real P2P Searching Radar."]);
               } else {
                 setIsDualTestMode(true);
-                if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
-                  remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
-                  remoteVideoRef.current.play().catch(() => {});
+                if (localVideoRef.current?.srcObject && p2RemoteVideoRef.current) {
+                  p2RemoteVideoRef.current.srcObject = secondaryMediaStreamRef.current || localVideoRef.current.srcObject;
+                  p2RemoteVideoRef.current.play().catch(() => {});
                   setHasRemoteStream(true);
                   setGameMode('PVP');
                   setMatchStatus('LIVE');
                   setCountdown(10);
-                  setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
+                  setChatLog(prev => [...prev, "📹 Solo Mirror / Dual Cam Test Mode Enabled!"]);
                 }
               }
             }}
@@ -847,13 +947,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               <video id="p1LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <>
-                <video id="p1RemoteDuelView" ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <video id="p1RemoteDuelView" ref={p1RemoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 {(!hasRemoteStream && !isDualTestMode) && (
                   <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center absolute inset-0 z-10 pt-16">
                     <div className="w-10 h-10 rounded-full border-2 border-blue-500 shadow-[0_0_20px_#0052ff] flex items-center justify-center mb-1.5 animate-pulse">
                       <span className="text-lg animate-spin">🌀</span>
                     </div>
-                    <h5 className="m-0 text-blue-200 text-[11px] sm:text-xs font-extrabold uppercase">Connecting to Player 1 (Host)...</h5>
+                    <h5 className="m-0 text-blue-200 text-[11px] sm:text-xs font-extrabold uppercase">Connecting to Player 1...</h5>
                     <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] mt-0.5">Establishing direct WebRTC video line.</p>
                   </div>
                 )}
@@ -861,7 +961,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             )}
 
             <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.75)', padding: '2px 6px', fontSize: '9px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
-              {myRole === 'PLAYER_1' ? "● YOU (PLAYER 1 - HOST)" : "● OPPONENT (PLAYER 1 - HOST)"}
+              {myRole === 'PLAYER_1' ? "● YOU (PLAYER 1)" : "● OPPONENT (PLAYER 1)"}
             </div>
 
             {winnerId === 1 && (
@@ -911,7 +1011,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               <video id="p2LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <>
-                <video id="p2RemoteDuelView" ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <video id="p2RemoteDuelView" ref={p2RemoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 {(!hasRemoteStream && !isDualTestMode) && (
                   <div
                     className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center"
@@ -941,9 +1041,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                         <button
                           onClick={() => {
                             setIsDualTestMode(true);
-                            if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
-                              remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
-                              remoteVideoRef.current.play().catch(() => {});
+                            if (localVideoRef.current?.srcObject && p2RemoteVideoRef.current) {
+                              p2RemoteVideoRef.current.srcObject = secondaryMediaStreamRef.current || localVideoRef.current.srcObject;
+                              p2RemoteVideoRef.current.play().catch(() => {});
                               setHasRemoteStream(true);
                               setGameMode('PVP');
                               setMatchStatus('LIVE');
