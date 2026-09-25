@@ -35,13 +35,26 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
   const [autoBattle, setAutoBattle] = useState<boolean>(true);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+  const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2'>('PLAYER_1');
+
+  // Tab-isolated session ID to prevent tab-collisions on the same device
+  const [tabSessionId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'p1';
+    let stored = sessionStorage.getItem('facebet_tab_peer_id');
+    if (!stored) {
+      stored = `node_${Math.random().toString(36).substring(2, 8)}`;
+      sessionStorage.setItem('facebet_tab_peer_id', stored);
+    }
+    return stored;
+  });
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const activeUserId = userSession?.peerId || currentPeerId;
+  const basePeerId = userSession?.peerId || currentPeerId || "guest";
+  const activeUserId = `${basePeerId}_${tabSessionId}`;
   const activeWallet = userSession?.walletAddress || walletAddress;
 
   const toggleFullscreen = () => {
@@ -88,11 +101,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           if (data.event === "P2P_MATCH_FOUND") {
             const { player1PeerId, player2PeerId } = data;
             if (activeUserId === player1PeerId && player2PeerId) {
-              setChatLog(prev => [...prev, "🤝 REAL PLAYER FOUND! Securing WebRTC direct video line..."]);
+              setMyRole('PLAYER_1');
+              setChatLog(prev => [...prev, "🤝 REAL CHALLENGER FOUND! You are Player 1 (Host). Securing WebRTC video line..."]);
               setGameMode('PVP');
               initiateP2PConnectionCall(player2PeerId);
             } else if (activeUserId === player2PeerId && player1PeerId) {
-              setChatLog(prev => [...prev, "🤝 CONNECTED TO CHALLENGER! Securing WebRTC direct video line..."]);
+              setMyRole('PLAYER_2');
+              setChatLog(prev => [...prev, "🤝 CONNECTED TO HOST LOBBY! You are Player 2 (Challenger). Securing WebRTC video line..."]);
               setGameMode('PVP');
               initiateP2PConnectionCall(player1PeerId);
             }
@@ -268,7 +283,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     setChatLog(["Searching global multichain state maps for opponents..."]);
 
     try {
-      const response = await fetch(`${API_URL}/api/duel/matchmake`, {
+      const response = await fetch('/api/duel/matchmake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -279,6 +294,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         })
       });
       const data = await response.json();
+
+      if (data.userRole) {
+        setMyRole(data.userRole);
+      }
 
       if (data.action === "START_DUEL") {
         setGameMode(data.type);
@@ -347,8 +366,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
     if (p1Frame && p2Frame) {
       try {
-        const endpoint = API_URL ? `${API_URL}/api/evaluate-duel` : '/api/evaluate-duel';
-        const response = await fetch(endpoint, {
+        const response = await fetch('/api/evaluate-duel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -461,6 +479,19 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </h3>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Launch Player 2 Window Button */}
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.open(window.location.href, '_blank', 'width=700,height=850');
+              }
+            }}
+            className="bg-emerald-600/90 hover:bg-emerald-500 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-emerald-400/40 font-extrabold transition flex items-center gap-0.5 text-white cursor-pointer shadow shrink-0"
+            title="Open a second browser window as Player 2 to test live P2P matching"
+          >
+            <span>🚀 Launch Player 2 Window</span>
+          </button>
+
           {/* Solo Mirror Test Toggle Button */}
           <button
             onClick={() => {
@@ -534,7 +565,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         }`}
       >
 
-        {/* Left Side: Player 1 Grid + Celebration Overlay Interface */}
+        {/* Left Side: Player 1 (Host) Grid */}
         <div style={{
           background: '#000',
           borderRadius: layoutMode === 'vertical' ? '8px 8px 0 0' : '8px 0 0 8px',
@@ -544,9 +575,25 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           minHeight: isFullscreen ? '42vh' : '240px',
           boxShadow: winnerId === 1 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
         }}>
-          <video id="p1LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {myRole === 'PLAYER_1' ? (
+            <video id="p1LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <>
+              <video id="p1RemoteDuelView" ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              {(!hasRemoteStream && !isDualTestMode) && (
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center absolute inset-0 z-10">
+                  <div className="w-12 h-12 rounded-full border-2 border-blue-500 shadow-[0_0_20px_#0052ff] flex items-center justify-center mb-2 animate-pulse">
+                    <span className="text-xl animate-spin">🌀</span>
+                  </div>
+                  <h5 className="m-0 text-blue-200 text-xs font-extrabold uppercase">Connecting to Player 1 (Host)...</h5>
+                  <p className="text-[10px] text-gray-400 max-w-[200px] mt-1">Establishing direct P2P WebRTC video line to room host.</p>
+                </div>
+              )}
+            </>
+          )}
+
           <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.75)', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
-            ● YOU (PLAYER 1)
+            {myRole === 'PLAYER_1' ? "● YOU (PLAYER 1 - HOST)" : "● OPPONENT (PLAYER 1 - HOST)"}
           </div>
 
           {winnerId === 1 && (
@@ -557,7 +604,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           )}
         </div>
 
-        {/* Right Side: Player 2 Grid + Celebration Overlay Interface */}
+        {/* Right Side: Player 2 (Challenger) Grid */}
         <div style={{
           background: '#000',
           borderRadius: layoutMode === 'vertical' ? '0 0 8px 8px' : '0 8px 8px 0',
@@ -567,66 +614,63 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           minHeight: isFullscreen ? '42vh' : '240px',
           boxShadow: winnerId === 2 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
         }}>
-
-          {/* Remote video element: ALWAYS in the DOM so the ref is always valid */}
-          <video
-            id="p2RemoteDuelView"
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-
-          {/* Player 2 Stream Overlay: Active Human Search Radar or AI Bot fallback if requested */}
-          {(!hasRemoteStream && !isDualTestMode) && (
-            <div
-              className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
-              style={{ position: 'absolute', inset: 0, zIndex: 5 }}
-            >
-              {gameMode === 'PVAI' ? (
-                <>
-                  <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
-                    <span className="text-2xl">🤖</span>
-                  </div>
-                  <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
-                  <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
-                    {aiExpressionState}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-14 h-14 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-2 animate-pulse">
-                    <span className="text-2xl animate-bounce">🔍</span>
-                  </div>
-                  <h4 className="m-0 text-amber-200 text-xs font-extrabold uppercase tracking-wider">
-                    {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
-                  </h4>
-                  <p className="text-[10px] text-gray-400 max-w-[210px] my-1 font-medium leading-tight">
-                    Waiting for another real player to accept your $0.20 P2P duel request.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setIsDualTestMode(true);
-                      if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
-                        remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
-                        remoteVideoRef.current.play().catch(() => {});
-                        setGameMode('PVP');
-                        setMatchStatus('LIVE');
-                        setCountdown(10);
-                        setChatLog(prev => [...prev, "📹 Dual Camera Preview (Test Mode) Enabled!"]);
-                      }
-                    }}
-                    className="mt-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
-                  >
-                    📹 Dual Camera Preview (Test Mode)
-                  </button>
-                </>
+          {myRole === 'PLAYER_2' ? (
+            <video id="p2LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <>
+              <video id="p2RemoteDuelView" ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              {(!hasRemoteStream && !isDualTestMode) && (
+                <div
+                  className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
+                  style={{ position: 'absolute', inset: 0, zIndex: 5 }}
+                >
+                  {gameMode === 'PVAI' ? (
+                    <>
+                      <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
+                        <span className="text-2xl">🤖</span>
+                      </div>
+                      <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
+                      <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
+                        {aiExpressionState}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-14 h-14 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-2 animate-pulse">
+                        <span className="text-2xl animate-bounce">🔍</span>
+                      </div>
+                      <h4 className="m-0 text-amber-200 text-xs font-extrabold uppercase tracking-wider">
+                        {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
+                      </h4>
+                      <p className="text-[10px] text-gray-400 max-w-[210px] my-1 font-medium leading-tight">
+                        Waiting for another real player to accept your $0.20 P2P duel request.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setIsDualTestMode(true);
+                          if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
+                            remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
+                            remoteVideoRef.current.play().catch(() => {});
+                            setHasRemoteStream(true);
+                            setGameMode('PVP');
+                            setMatchStatus('LIVE');
+                            setCountdown(10);
+                            setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
+                          }
+                        }}
+                        className="mt-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
+                      >
+                        📹 Solo Mirror Preview
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
 
           <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.75)', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
-            ● OPPONENT (PLAYER 2)
+            {myRole === 'PLAYER_2' ? "● YOU (PLAYER 2 - CHALLENGER)" : "● OPPONENT (PLAYER 2)"}
           </div>
 
           {winnerId === 2 && (
