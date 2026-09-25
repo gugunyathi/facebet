@@ -133,4 +133,4 @@ contract LotteryLiveEscrow {
 ---
 
 ## 📜 License
-MIT License. Created for the Base & Coinbase CDP Ecosystem.
+MIT License. Created for the ARC, Base & Coinbase Ecosystem.
