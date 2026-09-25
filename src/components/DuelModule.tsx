@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { VideoProvider, API_URL } from '@/utils/constants';
 import { capturePlayerFrame } from '@/services/videoCapture';
+import { parseExpressionKeywords } from '@/components/TrendTicker';
 
 interface DuelModuleProps {
   currentPeerId?: string;
@@ -30,6 +31,37 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [autoBattle, setAutoBattle] = useState<boolean>(true);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+
+  // Target Words Overlay State
+  const [targetWords, setTargetWords] = useState<string[]>(["WIDE-EYED SHOCK", "UNHINGED JAW", "NEON GAZE", "CYBER SMILE"]);
+  const [targetWordIndex, setTargetWordIndex] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchActiveTrend = async () => {
+      try {
+        const res = await fetch('/api/active-trend');
+        const data = await res.json();
+        if (data?.currentTrend) {
+          const keywords = parseExpressionKeywords(data.currentTrend);
+          if (keywords.length > 0) {
+            setTargetWords(keywords);
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchActiveTrend();
+    const interval = setInterval(fetchActiveTrend, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (targetWords.length === 0) return;
+    const interval = setInterval(() => {
+      setTargetWordIndex(prev => (prev + 1) % targetWords.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [targetWords.length]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -301,52 +333,89 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
         </div>
       </div>
 
-      {/* Dual Arena Viewport - Zero gap between player and AI hologram frames */}
-      <div className={`grid gap-0 min-h-[220px] mb-3 w-full ${
-        layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-2'
+      {/* Dual Arena Viewport with Wallet Display Headers */}
+      <div className={`grid gap-2 min-h-[220px] mb-3 w-full ${
+        layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'
       }`}>
-        {/* Left Screen: Player Local Camera Stream */}
-        <div style={{
-          borderRadius: layoutMode === 'vertical' ? '12px 12px 0 0' : '12px 0 0 12px'
-        }} className="bg-black overflow-hidden border-2 border-blue-600 relative min-h-[160px] flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.3)]">
-          <video id="p1LocalDuelView" autoPlay muted playsInline className="w-full h-full object-cover" />
-          <div className="absolute top-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-blue-400 border border-blue-500/40 shadow flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>YOU (PLAYER 1)</span>
+        {/* Left Column: Player Local Camera Stream */}
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between bg-blue-950/90 border border-blue-500/60 px-3 py-1.5 rounded-t-xl text-xs font-mono font-bold text-blue-200">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-base">👑</span>
+              <span className="text-white font-extrabold truncate">YOU (PLAYER 1)</span>
+            </div>
+            <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded border border-blue-400/30 text-[10px] sm:text-[11px] font-mono shrink-0 ml-2">
+              💳 {activeWallet ? `${activeWallet.substring(0, 6)}...${activeWallet.slice(-4)}` : "0x71C7...976F"}
+            </div>
+          </div>
+
+          <div style={{
+            borderRadius: '0 0 12px 12px'
+          }} className="bg-black overflow-hidden border-2 border-blue-600 border-t-0 relative min-h-[160px] flex items-center justify-center flex-1 shadow-[0_0_15px_rgba(37,99,235,0.3)]">
+            {/* Single Flashing Target Word Floating Overlay on Player 1 Camera */}
+            <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
+              <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">
+                ⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}
+              </div>
+            </div>
+
+            <video id="p1LocalDuelView" autoPlay muted playsInline className="w-full h-full object-cover" />
+            <div className="absolute bottom-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-blue-400 border border-blue-500/40 shadow flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>LIVE CAMERA STREAM</span>
+            </div>
           </div>
         </div>
 
-        {/* Right Screen: AI Hologram Core Viewport */}
-        <div style={{
-          borderRadius: layoutMode === 'vertical' ? '0 0 12px 12px' : '0 12px 12px 0'
-        }} className="overflow-hidden relative flex flex-col items-center justify-center min-h-[160px] bg-[#07020d] border-2 border-purple-600 shadow-[inset_0_0_20px_rgba(138,43,226,0.5)]">
-          {gameMode === 'PVP' ? (
-            <video id="p2RemoteDuelView" autoPlay playsInline className="w-full h-full object-cover" />
-          ) : (
-            <div className="text-center p-3 w-full h-full flex flex-col items-center justify-center relative">
-              {/* Hologram Pulse Avatar Graphic */}
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2,inset_0_0_15px_#8a2be2] flex items-center justify-center mb-2 animate-pulse bg-[radial-gradient(circle,rgba(138,43,226,0.4)_0%,rgba(0,0,0,0.9)_100%)]">
-                <span className="text-3xl sm:text-4xl">🤖</span>
-              </div>
-
-              <h4 className="m-0 text-purple-200 text-xs sm:text-sm font-extrabold">
-                {botData?.name || "AI HOLOGRAM CORE"}
-              </h4>
-
-              <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2.5 py-0.5 rounded-full border border-purple-500/40 my-1 font-mono uppercase tracking-wider">
-                {aiExpressionState}
-              </div>
-
-              {countdown !== null && (
-                <div className="text-lg sm:text-2xl font-black text-amber-300 drop-shadow-[0_0_10px_#8a2be2] mt-1 animate-bounce">
-                  ⏱️ {countdown}s
-                </div>
-              )}
+        {/* Right Column: AI Hologram / Opponent Viewport */}
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between bg-purple-950/90 border border-purple-500/60 px-3 py-1.5 rounded-t-xl text-xs font-mono font-bold text-purple-200">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-base">🤖</span>
+              <span className="text-white font-extrabold truncate">{botData?.name || "AI HOLOGRAM BOSS"}</span>
             </div>
-          )}
+            <div className="text-purple-300 bg-black/80 px-2 py-0.5 rounded border border-purple-400/30 text-[10px] sm:text-[11px] font-mono shrink-0 ml-2">
+              💳 0x_AI_HOLOGRAM_AGENT_VAULT
+            </div>
+          </div>
 
-          <div className="absolute top-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-purple-300 border border-purple-500/40 shadow">
-            {gameMode === 'PVP' ? 'OPPONENT (P2)' : `BOSS: ${botData?.name || "AI HOLOGRAM"}`}
+          <div style={{
+            borderRadius: '0 0 12px 12px'
+          }} className="overflow-hidden border-t-0 relative flex flex-col items-center justify-center min-h-[160px] flex-1 bg-[#07020d] border-2 border-purple-600 shadow-[inset_0_0_20px_rgba(138,43,226,0.5)]">
+            {/* Single Flashing Target Word Floating Overlay on Player 2 Camera */}
+            <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
+              <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">
+                ⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}
+              </div>
+            </div>
+            {gameMode === 'PVP' ? (
+              <video id="p2RemoteDuelView" autoPlay playsInline className="w-full h-full object-cover" />
+            ) : (
+              <div className="text-center p-3 w-full h-full flex flex-col items-center justify-center relative">
+                {/* Hologram Pulse Avatar Graphic */}
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2,inset_0_0_15px_#8a2be2] flex items-center justify-center mb-2 animate-pulse bg-[radial-gradient(circle,rgba(138,43,226,0.4)_0%,rgba(0,0,0,0.9)_100%)]">
+                  <span className="text-3xl sm:text-4xl">🤖</span>
+                </div>
+
+                <h4 className="m-0 text-purple-200 text-xs sm:text-sm font-extrabold">
+                  {botData?.name || "AI HOLOGRAM CORE"}
+                </h4>
+
+                <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2.5 py-0.5 rounded-full border border-purple-500/40 my-1 font-mono uppercase tracking-wider">
+                  {aiExpressionState}
+                </div>
+
+                {countdown !== null && (
+                  <div className="text-lg sm:text-2xl font-black text-amber-300 drop-shadow-[0_0_10px_#8a2be2] mt-1 animate-bounce">
+                    ⏱️ {countdown}s
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="absolute bottom-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-purple-300 border border-purple-500/40 shadow">
+              {gameMode === 'PVP' ? 'OPPONENT (P2)' : `BOSS: ${botData?.name || "AI HOLOGRAM"}`}
+            </div>
           </div>
         </div>
       </div>

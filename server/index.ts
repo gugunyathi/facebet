@@ -569,6 +569,83 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
+  // Global Real-Time Arena King-of-the-Hill Queue State
+  interface ArenaQueuedPlayer {
+    userId: string;
+    peerId: string;
+    walletAddress: string;
+    userName: string;
+    bidAmount: number;
+    joinedAt: number;
+    consecutiveWins: number;
+  }
+
+  let arenaKingPlayer: ArenaQueuedPlayer | null = null;
+  let arenaChallengerPlayer: ArenaQueuedPlayer | null = null;
+  let arenaQueue: ArenaQueuedPlayer[] = [];
+  let arenaMatchCounter: number = 0;
+  let arenaMatchStatus: 'WAITING' | 'LIVE' | 'AI_JUDGING' | 'COMPLETE' = 'WAITING';
+
+  // Select next challenger using the 10-play Democratized Regular Queue Rule
+  const getNextChallenger = (): ArenaQueuedPlayer | null => {
+    if (arenaQueue.length === 0) return null;
+
+    // 10-play democratization rule: Every 10th match, pick longest-waiting regular player (FIFO)
+    const isDemocratizedTurn = (arenaMatchCounter % 10 === 0 && arenaMatchCounter > 0);
+
+    if (isDemocratizedTurn) {
+      // Sort strictly by joinedAt ASC (FIFO order)
+      arenaQueue.sort((a, b) => a.joinedAt - b.joinedAt);
+    } else {
+      // Sort by bidAmount DESC (higher bids jump queue), then joinedAt ASC
+      arenaQueue.sort((a, b) => {
+        if (b.bidAmount !== a.bidAmount) {
+          return b.bidAmount - a.bidAmount;
+        }
+        return a.joinedAt - b.joinedAt;
+      });
+    }
+
+    return arenaQueue.shift() || null;
+  };
+
+  // Broadcast real-time global arena state to all connected clients
+  const broadcastArenaState = () => {
+    const isDemocratizedTurn = (arenaMatchCounter % 10 === 0 && arenaMatchCounter > 0);
+    broadcastWSMessage({
+      event: "ARENA_STATE_UPDATE",
+      king: arenaKingPlayer ? {
+        userId: arenaKingPlayer.userId,
+        peerId: arenaKingPlayer.peerId,
+        walletAddress: arenaKingPlayer.walletAddress,
+        userName: arenaKingPlayer.userName,
+        bidAmount: arenaKingPlayer.bidAmount,
+        consecutiveWins: arenaKingPlayer.consecutiveWins
+      } : null,
+      challenger: arenaChallengerPlayer ? {
+        userId: arenaChallengerPlayer.userId,
+        peerId: arenaChallengerPlayer.peerId,
+        walletAddress: arenaChallengerPlayer.walletAddress,
+        userName: arenaChallengerPlayer.userName,
+        bidAmount: arenaChallengerPlayer.bidAmount,
+        consecutiveWins: arenaChallengerPlayer.consecutiveWins
+      } : null,
+      queue: arenaQueue.map((p, idx) => ({
+        userId: p.userId,
+        peerId: p.peerId,
+        walletAddress: p.walletAddress,
+        userName: p.userName,
+        bidAmount: p.bidAmount,
+        joinedAt: p.joinedAt,
+        queuePosition: idx + 1
+      })),
+      matchCounter: arenaMatchCounter,
+      matchStatus: arenaMatchStatus,
+      isDemocratizedTurn,
+      onlineUsersCount
+    });
+  };
+
   // Helper to broadcast events to all connected WebSocket clients
   const broadcastWSMessage = (eventObj: any) => {
     try {
@@ -614,146 +691,88 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
   // POST /api/duel/matchmake endpoint
   app.post("/api/duel/matchmake", async (req: Request, res: Response) => {
     try {
-      const { userId, walletAddress, stakeUSD, peerId } = req.body || {};
-      const stake = stakeUSD || 0.20;
-      const playerPeerId = peerId || userId;
+      const { userId, walletAddress, stakeUSD, peerId, userName } = req.body || {};
+      const stake = parseFloat(stakeUSD) || 0.20;
+      const playerPeerId = peerId || userId || `user_${Date.now()}`;
+      const playerWallet = walletAddress || `0x_${playerPeerId.slice(0, 8)}`;
+      const name = userName || `Player_${playerPeerId.slice(-4)}`;
 
-      // 1. Check if an existing human player is waiting in a room
-      let availableRoom = null;
-      if (isMongoConnected) {
-        try {
-          availableRoom = await (DuelRoom as any).findOne({ status: 'waiting', stakeAmountUSD: stake });
-        } catch {
-          availableRoom = inMemoryDuelRooms.find(r => r.status === 'waiting' && r.stakeAmountUSD === stake);
-        }
-      } else {
-        availableRoom = inMemoryDuelRooms.find(r => r.status === 'waiting' && r.stakeAmountUSD === stake);
+      const playerObj: ArenaQueuedPlayer = {
+        userId: playerPeerId,
+        peerId: playerPeerId,
+        walletAddress: playerWallet,
+        userName: name,
+        bidAmount: stake,
+        joinedAt: Date.now(),
+        consecutiveWins: 0
+      };
+
+      // 1. Assign to King (Player 1) if spot is empty
+      if (!arenaKingPlayer || arenaKingPlayer.userId === playerPeerId) {
+        arenaKingPlayer = playerObj;
+        broadcastArenaState();
+        return res.status(200).json({
+          type: 'PVP',
+          action: 'WAITING_FOR_OPPONENT',
+          userRole: 'PLAYER_1',
+          opponentPeerId: arenaChallengerPlayer?.peerId || null,
+          king: arenaKingPlayer,
+          challenger: arenaChallengerPlayer
+        });
       }
 
-      if (availableRoom && availableRoom.player1PeerId !== playerPeerId) {
-        availableRoom.player2PeerId = playerPeerId;
-        availableRoom.player2Wallet = walletAddress || `0xP2_${playerPeerId}`;
-        availableRoom.status = 'active';
-        if (typeof availableRoom.save === 'function') {
-          try { await availableRoom.save(); } catch {}
-        }
+      // 2. Assign to Challenger (Player 2) if spot is empty
+      if (!arenaChallengerPlayer || arenaChallengerPlayer.userId === playerPeerId) {
+        arenaChallengerPlayer = playerObj;
+        arenaMatchStatus = 'LIVE';
 
-        // Notify waiting challenger that a human accepted!
         broadcastWSMessage({
           event: "P2P_MATCH_FOUND",
-          roomId: availableRoom.roomId,
-          player1PeerId: availableRoom.player1PeerId,
-          player2PeerId: playerPeerId,
+          roomId: `arena_${Date.now()}`,
+          player1PeerId: arenaKingPlayer.peerId,
+          player2PeerId: arenaChallengerPlayer.peerId,
         });
+
+        broadcastArenaState();
 
         return res.status(200).json({
           type: 'PVP',
           action: 'START_DUEL',
-          room: availableRoom,
-          opponentPeerId: availableRoom.player1PeerId,
-          userRole: 'PLAYER_2'
-        });
-      } else {
-        // Create new waiting room
-        const generatedRoomId = `duel_${Math.random().toString(36).substring(2, 10)}`;
-        const newRoomData = {
-          roomId: generatedRoomId,
-          player1PeerId: playerPeerId,
-          player1Wallet: walletAddress || `0xP1_${playerPeerId}`,
-          stakeAmountUSD: stake,
-          status: 'waiting',
-          createdAt: new Date()
-        };
-
-        if (isMongoConnected) {
-          try {
-            await (DuelRoom as any).create(newRoomData);
-          } catch {
-            inMemoryDuelRooms.push(newRoomData);
-          }
-        } else {
-          inMemoryDuelRooms.push(newRoomData);
-        }
-
-        // Broadcast human challenge request to all connected users (including those in P2PAI Arena)
-        broadcastWSMessage({
-          event: "HUMAN_DUEL_REQUEST",
-          challengerPeerId: playerPeerId,
-          walletAddress: walletAddress || `0xP1_${playerPeerId}`,
-          roomId: generatedRoomId,
-          timestamp: Date.now()
-        });
-
-        // Polling check: Wait up to 8 seconds checking if another human challenger joins
-        for (let attempt = 0; attempt < 8; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          let checkRoom: any = null;
-          if (isMongoConnected) {
-            try {
-              checkRoom = await (DuelRoom as any).findOne({ roomId: generatedRoomId });
-            } catch {
-              checkRoom = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId);
-            }
-          } else {
-            checkRoom = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId);
-          }
-
-          if (checkRoom && checkRoom.status === 'active' && checkRoom.player2PeerId && !checkRoom.player2PeerId.startsWith('BOT_')) {
-            return res.status(200).json({
-              type: 'PVP',
-              action: 'START_DUEL',
-              room: checkRoom,
-              opponentPeerId: checkRoom.player2PeerId,
-              userRole: 'PLAYER_1'
-            });
-          }
-        }
-
-        // If after 8 seconds no human joined, keep room in WAITING_FOR_OPPONENT state for pure human P2P
-        let finalRoomCheck: any = null;
-        if (isMongoConnected) {
-          try {
-            finalRoomCheck = await (DuelRoom as any).findOne({ roomId: generatedRoomId, status: 'waiting' });
-          } catch {
-            finalRoomCheck = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
-          }
-        } else {
-          finalRoomCheck = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
-        }
-
-        // Only assign AI bot if allowBotFallback is explicitly requested
-        if (finalRoomCheck && req.body?.allowBotFallback) {
-          const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
-          const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
-
-          finalRoomCheck.player2PeerId = `BOT_${Math.random().toString(36).substring(2, 8)}`;
-          finalRoomCheck.player2Wallet = `0x_AI_AGENT_${randomName.toUpperCase()}_VAULT`;
-          finalRoomCheck.status = 'active';
-          if (typeof finalRoomCheck.save === 'function') {
-            try { await finalRoomCheck.save(); } catch {}
-          }
-
-          return res.status(200).json({
-            type: 'PVAI',
-            action: 'START_DUEL',
-            room: finalRoomCheck,
-            botMeta: {
-              name: randomName,
-              avatarSeed: Math.floor(Math.random() * 1000),
-              taunt: "Your micro-expressions lack Web3 cryptographic volatility. Prepare to default."
-            }
-          });
-        }
-
-        return res.status(200).json({
-          type: 'PVP',
-          action: 'WAITING_FOR_OPPONENT',
-          room: newRoomData,
-          opponentPeerId: null,
-          userRole: 'PLAYER_1'
+          userRole: 'PLAYER_2',
+          opponentPeerId: arenaKingPlayer.peerId,
+          king: arenaKingPlayer,
+          challenger: arenaChallengerPlayer
         });
       }
+
+      // 3. Place into Queue if both slots are full
+      // Filter out existing copy if present
+      arenaQueue = arenaQueue.filter(p => p.userId !== playerPeerId);
+      arenaQueue.push(playerObj);
+
+      // Re-sort queue based on 10-play democratization rule
+      const isDemocratizedTurn = (arenaMatchCounter % 10 === 0 && arenaMatchCounter > 0);
+      if (isDemocratizedTurn) {
+        arenaQueue.sort((a, b) => a.joinedAt - b.joinedAt);
+      } else {
+        arenaQueue.sort((a, b) => {
+          if (b.bidAmount !== a.bidAmount) return b.bidAmount - a.bidAmount;
+          return a.joinedAt - b.joinedAt;
+        });
+      }
+
+      const position = arenaQueue.findIndex(p => p.userId === playerPeerId) + 1;
+      broadcastArenaState();
+
+      return res.status(200).json({
+        type: 'PVP',
+        action: 'QUEUED',
+        userRole: 'QUEUED',
+        queuePosition: position,
+        opponentPeerId: null,
+        king: arenaKingPlayer,
+        challenger: arenaChallengerPlayer
+      });
     } catch (err: any) {
       console.error("Duel matchmake error:", err);
       return res.status(500).json({ error: err.message || "Failed to allocate duel room." });
@@ -1388,6 +1407,64 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         console.warn("ContractBridge execution notice:", txErr?.message || txErr);
       }
 
+      // --- KING OF THE HILL ARENA QUEUE ROTATION LOGIC ---
+      arenaMatchCounter++;
+      arenaMatchStatus = 'COMPLETE';
+
+      let loserPlayer: ArenaQueuedPlayer | null = null;
+
+      if (verdict.winner === 1) {
+        // Player 1 (King) stays on
+        if (arenaKingPlayer) {
+          arenaKingPlayer.consecutiveWins = (arenaKingPlayer.consecutiveWins || 0) + 1;
+        }
+        loserPlayer = arenaChallengerPlayer;
+      } else {
+        // Player 2 (Challenger) defeats King and takes over Player 1 spot!
+        loserPlayer = arenaKingPlayer;
+        if (arenaChallengerPlayer) {
+          arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+        }
+      }
+
+      // Automatically re-queue the loser into the waiting queue if human
+      if (loserPlayer && !loserPlayer.userId.startsWith('BOT_')) {
+        loserPlayer.joinedAt = Date.now();
+        loserPlayer.consecutiveWins = 0;
+        arenaQueue = arenaQueue.filter(p => p.userId !== loserPlayer!.userId);
+        arenaQueue.push(loserPlayer);
+      }
+
+      // Promote next challenger from queue based on the 10-play democratization rule
+      arenaChallengerPlayer = getNextChallenger();
+
+      // If no human player is waiting in queue, generate AI Hologram Boss filler so King can keep playing
+      if (!arenaChallengerPlayer) {
+        const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
+        const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
+        arenaChallengerPlayer = {
+          userId: `BOT_${Math.random().toString(36).substring(2, 8)}`,
+          peerId: `BOT_${Math.random().toString(36).substring(2, 8)}`,
+          walletAddress: `0x_AI_AGENT_${randomName.toUpperCase()}_VAULT`,
+          userName: `🤖 ${randomName}`,
+          bidAmount: 0.20,
+          joinedAt: Date.now(),
+          consecutiveWins: 0
+        };
+      }
+
+      // Broadcast WebRTC match setup for King & new Challenger
+      if (arenaKingPlayer && arenaChallengerPlayer) {
+        broadcastWSMessage({
+          event: "P2P_MATCH_FOUND",
+          roomId: `arena_${Date.now()}`,
+          player1PeerId: arenaKingPlayer.peerId,
+          player2PeerId: arenaChallengerPlayer.peerId,
+        });
+      }
+
+      broadcastArenaState();
+
       return res.status(200).json({
         success: true,
         winner: verdict.winner,
@@ -1479,6 +1556,20 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     onlineUsersCount++;
     broadcastOnlineCount();
 
+    // Send immediate initial arena state update to newly connected client
+    try {
+      ws.send(JSON.stringify({
+        event: "ARENA_STATE_UPDATE",
+        king: arenaKingPlayer,
+        challenger: arenaChallengerPlayer,
+        queue: arenaQueue.map((p, idx) => ({ ...p, queuePosition: idx + 1 })),
+        matchCounter: arenaMatchCounter,
+        matchStatus: arenaMatchStatus,
+        isDemocratizedTurn: (arenaMatchCounter % 10 === 0 && arenaMatchCounter > 0),
+        onlineUsersCount
+      }));
+    } catch {}
+
     ws.on("message", (rawMessage) => {
       const messageStr = rawMessage.toString();
       if (messageStr === "ping") {
@@ -1488,17 +1579,69 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         return;
       }
 
-      let data: MessageData | null = null;
+      let data: any = null;
       try {
         data = JSON.parse(messageStr);
       } catch {
         return;
       }
 
-      if (!data || !data.id || !data.event) return;
+      if (!data) return;
+
+      const eventType = data.event || data.type;
+
+      if (eventType === "JOIN_ARENA_QUEUE") {
+        const playerPeerId = data.peerId || data.userId || `user_${Date.now()}`;
+        const playerWallet = data.walletAddress || `0x_${playerPeerId.slice(0, 8)}`;
+        const name = data.userName || `Player_${playerPeerId.slice(-4)}`;
+        const stake = parseFloat(data.bidAmount) || 0.20;
+
+        const playerObj: ArenaQueuedPlayer = {
+          userId: playerPeerId,
+          peerId: playerPeerId,
+          walletAddress: playerWallet,
+          userName: name,
+          bidAmount: stake,
+          joinedAt: Date.now(),
+          consecutiveWins: 0
+        };
+
+        if (!arenaKingPlayer || arenaKingPlayer.userId === playerPeerId) {
+          arenaKingPlayer = playerObj;
+        } else if (!arenaChallengerPlayer || arenaChallengerPlayer.userId === playerPeerId) {
+          arenaChallengerPlayer = playerObj;
+          arenaMatchStatus = 'LIVE';
+          broadcastWSMessage({
+            event: "P2P_MATCH_FOUND",
+            roomId: `arena_${Date.now()}`,
+            player1PeerId: arenaKingPlayer.peerId,
+            player2PeerId: arenaChallengerPlayer.peerId,
+          });
+        } else {
+          arenaQueue = arenaQueue.filter(p => p.userId !== playerPeerId);
+          arenaQueue.push(playerObj);
+        }
+
+        broadcastArenaState();
+      } else if (eventType === "LEAVE_ARENA_QUEUE") {
+        const targetUserId = data.userId || data.peerId;
+        if (targetUserId) {
+          arenaQueue = arenaQueue.filter(p => p.userId !== targetUserId);
+          if (arenaKingPlayer?.userId === targetUserId) {
+            arenaKingPlayer = arenaChallengerPlayer;
+            arenaChallengerPlayer = getNextChallenger();
+          } else if (arenaChallengerPlayer?.userId === targetUserId) {
+            arenaChallengerPlayer = getNextChallenger();
+          }
+          broadcastArenaState();
+        }
+      } else if (eventType === "GET_ARENA_STATE") {
+        broadcastArenaState();
+      }
 
       if (
         (data.event === Event.JOIN || data.event === Event.SKIP) &&
+        data.id &&
         !users.find((user) => user.id === data?.id)
       ) {
         users = users.filter((u) => u.ws !== ws && u.id !== data!.id);
