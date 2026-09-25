@@ -55,13 +55,22 @@ const BASE_SEPOLIA_CHAIN = {
   blockExplorerUrls: ["https://sepolia.basescan.org"],
 };
 
-// ARC Network Chain Config
+// ARC Network Mainnet Chain Config (Circle)
 const ARC_CHAIN = {
-  chainId: "0x12d0", // 4816
+  chainId: "0x13b2", // 5042
   chainName: "ARC Network",
-  nativeCurrency: { name: "ARC", symbol: "ARC", decimals: 18 },
-  rpcUrls: ["https://rpc.arc.network"],
-  blockExplorerUrls: ["https://explorer.arc.network"],
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: ["https://rpc.mainnet.arc.io"],
+  blockExplorerUrls: ["https://explorer.arc.io"],
+};
+
+// ARC Network Testnet Chain Config (Circle)
+const ARC_TESTNET_CHAIN = {
+  chainId: "0x4cefa2", // 5042002
+  chainName: "ARC Testnet",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: ["https://rpc.testnet.arc.io"],
+  blockExplorerUrls: ["https://explorer.testnet.arc.io"],
 };
 
 export const WalletAuth: React.FC<WalletAuthProps> = ({

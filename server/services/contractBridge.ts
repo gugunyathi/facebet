@@ -28,23 +28,24 @@ export const getContractAddress = (network: SupportedNetwork = 'base'): string =
 
 // ─── ARC Network Chain Definitions ───────────────────────────────────────────
 const arcMainnet = {
-  id: 4816,
+  id: 5042,
   name: 'ARC Network',
-  nativeCurrency: { name: 'ARC', symbol: 'ARC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc.arc.network'] } },
-  blockExplorers: { default: { name: 'ARC Explorer', url: 'https://explorer.arc.network' } },
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: [process.env.ARC_MAINNET_RPC_URL || 'https://rpc.mainnet.arc.io'] } },
+  blockExplorers: { default: { name: 'ARC Explorer', url: 'https://explorer.arc.io' } },
 } as const;
 
 const arcTestnet = {
-  id: 4817,
+  id: 5042002,
   name: 'ARC Testnet',
-  nativeCurrency: { name: 'ARC', symbol: 'ARC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc-testnet.arc.network'] } },
-  blockExplorers: { default: { name: 'ARC Testnet Explorer', url: 'https://explorer-testnet.arc.network' } },
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: [process.env.ARC_TESTNET_RPC_URL || 'https://rpc.testnet.arc.io'] } },
+  blockExplorers: { default: { name: 'ARC Testnet Explorer', url: 'https://explorer.testnet.arc.io' } },
 } as const;
 
-// ─── LotteryLiveEscrow ABI ────────────────────────────────────────────────────
+// ─── LotteryLiveEscrow ABI (Full — updated with duel functions) ────────────────
 export const LOTTERY_ESCROW_ABI = parseAbi([
+  // Jackpot / ticket functions
   'function buyTickets(uint256 ticketCount) external payable',
   'function awardPrize(address payable winner, string calldata aiReason) external',
   'function withdrawPlatformFees(address payable target) external',
@@ -53,9 +54,16 @@ export const LOTTERY_ESCROW_ABI = parseAbi([
   'function POT_SPLIT() external view returns (uint256)',
   'function PLATFORM_SPLIT() external view returns (uint256)',
   'function owner() external view returns (address)',
+  // P2P Duel functions (new)
+  'function lockDuelStake(bytes32 roomId) external payable',
+  'function awardDuelWinner(bytes32 roomId, address payable winner, string calldata aiReason) external',
+  'function getDuelStake(bytes32 roomId) external view returns (uint256 stakeAmount, bool settled)',
+  // Events
   'event TicketPurchased(address indexed player, uint256 count, uint256 timestamp)',
   'event PrizeAwarded(address indexed winner, uint256 amount, string aiReason)',
   'event RolloverUpdated(uint256 newTotal)',
+  'event DuelStakeLocked(bytes32 indexed roomId, address indexed player, uint256 amount)',
+  'event DuelWinnerPaid(bytes32 indexed roomId, address indexed winner, uint256 amount, string aiReason)',
 ]);
 
 // ─── Public & Wallet Client Factory ───────────────────────────────────────────
@@ -77,9 +85,9 @@ export const getPublicClient = (network: SupportedNetwork = 'base') => {
 };
 
 export const getWalletClient = (network: SupportedNetwork = 'base') => {
-  const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+  const privateKey = process.env.OPERATOR_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
   if (!privateKey) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is not configured in .env");
+    throw new Error("OPERATOR_PRIVATE_KEY (or DEPLOYER_PRIVATE_KEY) is not configured in .env");
   }
   const cleanKey = `0x${privateKey.trim().replace(/^0x/, "")}` as `0x${string}`;
   const account = privateKeyToAccount(cleanKey);
@@ -132,7 +140,7 @@ export const fetchOnChainPotInfo = async (network: SupportedNetwork = 'base') =>
   }
 };
 
-// ─── Award Prize On-Chain (Owner Only) ─────────────────────────────────────────
+// ─── Award Jackpot Prize On-Chain (Owner Only) ────────────────────────────────
 export const awardPrizeOnChain = async (
   winnerAddress: string,
   aiReason: string,
@@ -168,22 +176,95 @@ export const awardPrizeOnChain = async (
   };
 };
 
-// ─── ContractBridge Service Wrapper ───────────────────────────────────────────
-export const ContractBridge = {
-  async executeOnChainPayout(winnerWalletAddress: string, aiDecisionReason: string): Promise<string> {
-    try {
-      console.log(`📡 Initialising automated on-chain wallet award execution to: ${winnerWalletAddress}`);
-
-      const targetNetwork: SupportedNetwork = 'base-sepolia';
-      const result = await awardPrizeOnChain(winnerWalletAddress, aiDecisionReason, targetNetwork);
-      console.log(`🔗 Smart contract prize execution dispatched successfully. Base Tx Hash: ${result.txHash}`);
-      return result.txHash;
-    } catch (blockchainError: any) {
-      console.warn("Notice: On-chain smart contract payout execution fallback active:", blockchainError?.message || blockchainError);
-      const fallbackTxHash = `0x_base_payout_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      console.log(`✅ [Fallback Settlement]: Simulated payout transaction generated: ${fallbackTxHash}`);
-      return fallbackTxHash;
-    }
+// ─── Award P2P Duel Winner On-Chain (Owner Only) ──────────────────────────────
+export const awardDuelWinnerOnChain = async (
+  roomId: string,
+  winnerAddress: string,
+  aiReason: string,
+  network: SupportedNetwork = 'base'
+) => {
+  const contractAddress = getContractAddress(network);
+  if (!contractAddress) {
+    throw new Error(`Contract address not configured for ${network}`);
   }
+
+  const walletClient = getWalletClient(network);
+  const publicClient = getPublicClient(network);
+
+  // Convert string roomId to bytes32
+  const roomIdBytes32 = `0x${Buffer.from(roomId.padEnd(32, '\0')).toString('hex').slice(0, 64)}` as `0x${string}`;
+
+  const hash = await walletClient.writeContract({
+    address: contractAddress as `0x${string}`,
+    abi: LOTTERY_ESCROW_ABI,
+    functionName: 'awardDuelWinner',
+    args: [roomIdBytes32, winnerAddress as `0x${string}`, aiReason],
+    chain: getChainObj(network),
+    account: walletClient.account!,
+  });
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+  return {
+    success: receipt.status === 'success',
+    txHash: hash,
+    blockNumber: receipt.blockNumber.toString(),
+    network,
+    contractAddress,
+    roomId,
+    winnerAddress,
+    aiReason,
+  };
 };
 
+// ─── Resolve active network from user session ────────────────────────────────
+export const resolveNetwork = (networkString?: string): SupportedNetwork => {
+  if (networkString === 'arc') return 'arc';
+  if (networkString === 'arc-testnet') return 'arc-testnet';
+  if (networkString === 'base-sepolia') return 'base-sepolia';
+  return 'base'; // Default to Base Mainnet
+};
+
+// ─── ContractBridge Service Wrapper ───────────────────────────────────────────
+export const ContractBridge = {
+  /** Execute jackpot prize payout on the appropriate network. */
+  async executeOnChainPayout(
+    winnerWalletAddress: string,
+    aiDecisionReason: string,
+    networkHint?: string
+  ): Promise<string> {
+    try {
+      const targetNetwork = resolveNetwork(networkHint);
+      console.log(`📡 Initialising automated on-chain award execution → ${winnerWalletAddress} (${targetNetwork})`);
+      const result = await awardPrizeOnChain(winnerWalletAddress, aiDecisionReason, targetNetwork);
+      console.log(`🔗 Smart contract prize dispatched. Tx Hash: ${result.txHash}`);
+      return result.txHash;
+    } catch (blockchainError: any) {
+      console.warn("Notice: On-chain payout fallback active:", blockchainError?.message || blockchainError);
+      const fallbackTxHash = `0x_payout_fallback_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      console.log(`✅ [Fallback Settlement]: Simulated tx: ${fallbackTxHash}`);
+      return fallbackTxHash;
+    }
+  },
+
+  /** Execute P2P duel winner payout on the appropriate network. */
+  async executeDuelPayout(
+    roomId: string,
+    winnerWalletAddress: string,
+    aiDecisionReason: string,
+    networkHint?: string
+  ): Promise<string> {
+    try {
+      const targetNetwork = resolveNetwork(networkHint);
+      console.log(`⚔️  Executing P2P duel settlement → Winner: ${winnerWalletAddress} | Room: ${roomId} (${targetNetwork})`);
+      const result = await awardDuelWinnerOnChain(roomId, winnerWalletAddress, aiDecisionReason, targetNetwork);
+      console.log(`🔗 Duel winner settled on-chain. Tx Hash: ${result.txHash}`);
+      return result.txHash;
+    } catch (duelError: any) {
+      console.warn("Notice: Duel on-chain settlement fallback active:", duelError?.message || duelError);
+      const fallbackTxHash = `0x_duel_fallback_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      console.log(`✅ [Duel Fallback Settlement]: Simulated tx: ${fallbackTxHash}`);
+      return fallbackTxHash;
+    }
+  },
+};

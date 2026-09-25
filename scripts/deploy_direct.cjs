@@ -125,10 +125,26 @@ async function deployToNetwork(networkName, rpcUrl, chainIdExpected) {
   const envPath = path.join(__dirname, "../.env");
   if (fs.existsSync(envPath)) {
     let envContent = fs.readFileSync(envPath, "utf8");
-    const liveKey = networkName.includes("Sepolia") ? "CONTRACT_ADDRESS_BASE_SEPOLIA" : "CONTRACT_ADDRESS_BASE_MAINNET";
-    const legacyKey = networkName.includes("Sepolia") ? "CONTRACT_ADDRESS_LEGACY_BASE_SEPOLIA" : "CONTRACT_ADDRESS_LEGACY_BASE_MAINNET";
+    let liveKey = "CONTRACT_ADDRESS_BASE_SEPOLIA";
+    let legacyKey = "CONTRACT_ADDRESS_LEGACY_BASE_SEPOLIA";
+    let explorerUrl = "https://sepolia.basescan.org/address/";
+
+    if (networkName.includes("Base Mainnet")) {
+      liveKey = "CONTRACT_ADDRESS_BASE_MAINNET";
+      legacyKey = "CONTRACT_ADDRESS_LEGACY_BASE_MAINNET";
+      explorerUrl = "https://basescan.org/address/";
+    } else if (networkName.includes("ARC Testnet")) {
+      liveKey = "CONTRACT_ADDRESS_ARC_TESTNET";
+      legacyKey = "";
+      explorerUrl = "https://explorer.testnet.arc.io/address/";
+    } else if (networkName.includes("ARC Mainnet")) {
+      liveKey = "CONTRACT_ADDRESS_ARC_MAINNET";
+      legacyKey = "";
+      explorerUrl = "https://explorer.arc.io/address/";
+    }
 
     const updateOrAppend = (key, val) => {
+      if (!key) return;
       const regex = new RegExp(`^${key}=.*$`, "m");
       if (regex.test(envContent)) {
         envContent = envContent.replace(regex, `${key}=${val}`);
@@ -138,19 +154,15 @@ async function deployToNetwork(networkName, rpcUrl, chainIdExpected) {
     };
 
     updateOrAppend(liveKey, liveAddress);
-    updateOrAppend(legacyKey, legacyAddress);
+    if (legacyKey) updateOrAppend(legacyKey, legacyAddress);
 
     fs.writeFileSync(envPath, envContent);
     console.log(`\n✅ Updated .env with contract addresses!`);
+
+    console.log("\n🔗 Block Explorer Links:");
+    console.log(`   LotteryLiveEscrow: ${explorerUrl}${liveAddress}`);
+    if (legacyKey) console.log(`   LotteryEscrow:     ${explorerUrl}${legacyAddress}`);
   }
-
-  const explorerUrl = networkName.includes("Sepolia")
-    ? "https://sepolia.basescan.org/address/"
-    : "https://basescan.org/address/";
-
-  console.log("\n🔗 Block Explorer Links:");
-  console.log(`   LotteryLiveEscrow: ${explorerUrl}${liveAddress}`);
-  console.log(`   LotteryEscrow:     ${explorerUrl}${legacyAddress}`);
 
   return { liveAddress, legacyAddress };
 }
@@ -163,6 +175,12 @@ async function main() {
   }
   if (target === "mainnet" || target === "both") {
     await deployToNetwork("Base Mainnet", "https://mainnet.base.org", 8453);
+  }
+  if (target === "arc" || target === "both") {
+    await deployToNetwork("ARC Mainnet", process.env.ARC_MAINNET_RPC_URL || "https://rpc.mainnet.arc.io", 5042);
+  }
+  if (target === "arc-testnet") {
+    await deployToNetwork("ARC Testnet", process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io", 5042002);
   }
 }
 
