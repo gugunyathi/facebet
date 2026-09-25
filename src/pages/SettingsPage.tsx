@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_URL } from "../utils/constants";
 import { MdSettings, MdVideocam, MdMic, MdPublic, MdNotifications, MdVolumeUp, MdCheck, MdHistory, MdPerson } from "react-icons/md";
 
 interface SettingsPageProps {
@@ -19,7 +20,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onGoToArena }) => {
   useEffect(() => {
     const fetchUserSessionAndHistory = async () => {
       try {
-        const historyRes = await fetch(`/api/user/history/${userId}`);
+        const historyRes = await fetch(`${API_URL}/api/user/history/${userId}`);
         if (historyRes.ok) {
           const historyData = await historyRes.json();
           if (historyData.success) {
@@ -27,7 +28,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onGoToArena }) => {
           }
         }
 
-        const sessionRes = await fetch(`/api/user/session/${userId}`);
+        const sessionRes = await fetch(`${API_URL}/api/user/session/${userId}`);
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json();
           if (sessionData.success) {

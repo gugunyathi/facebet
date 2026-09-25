@@ -70,7 +70,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   useEffect(() => {
     const fetchActiveTrend = async () => {
       try {
-        const res = await fetch('/api/active-trend');
+        const res = await fetch(`${API_URL}/api/active-trend`);
         const data = await res.json();
         if (data?.currentTrend) {
           setActiveTrendPrompt(data.currentTrend);
@@ -285,7 +285,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
 
     try {
-      const response = await fetch('/api/duel/matchmake', {
+      const response = await fetch(`${API_URL}/api/duel/matchmake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -330,26 +330,32 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     const setupCameraStreams = async () => {
       // 1. Setup P1 camera stream
       try {
-        let stream1: MediaStream | null = null;
-        if (p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        let stream1: MediaStream | null = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+        if (!stream1 && p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
           try {
             stream1 = await navigator.mediaDevices.getUserMedia({
               video: { deviceId: { exact: p1DeviceId } },
               audio: false
             });
           } catch {
-            // Fallback if exact device ID fails
-            stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            // Fallback if exact device ID fails or hardware locked
+            try {
+              stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch {}
           }
-        } else {
-          stream1 = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-          if (!stream1 && videoContext?.startVideoStream) {
+        }
+        
+        if (!stream1 && videoContext?.startVideoStream) {
+          try {
             await videoContext.startVideoStream();
             stream1 = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-          }
-          if (!stream1 && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          } catch {}
+        }
+
+        if (!stream1 && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          try {
             stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          }
+          } catch {}
         }
 
         if (isSubscribed && stream1) {
@@ -515,7 +521,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     setChatLog(["Searching global multichain state maps for opponents..."]);
 
     try {
-      const response = await fetch('/api/duel/matchmake', {
+      const response = await fetch(`${API_URL}/api/duel/matchmake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -608,7 +614,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
     if (p1Frame && p2Frame) {
       try {
-        const response = await fetch('/api/evaluate-duel', {
+        const response = await fetch(`${API_URL}/api/evaluate-duel`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

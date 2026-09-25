@@ -1,3 +1,5 @@
+import { API_URL } from '../utils/constants';
+
 let sharedCanvas: HTMLCanvasElement | null = null;
 
 export const capturePlayerFrame = (videoElementId: string): string | null => {
@@ -31,7 +33,7 @@ export const capturePlayerFrame = (videoElementId: string): string | null => {
 
 export const submitFrameForEvaluation = async (peerId: string, base64Frame: string) => {
   try {
-    const response = await fetch('/api/evaluate-frame', {
+    const response = await fetch(`${API_URL}/api/evaluate-frame`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ peerId, frame: base64Frame })

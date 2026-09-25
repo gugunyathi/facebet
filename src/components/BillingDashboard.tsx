@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../utils/constants';
 import { pay, subscribe } from '@base-org/account';
 
 interface BillingDashboardProps {
@@ -23,7 +24,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
     setMessage(null);
     setErrorMessage(null);
     try {
-      const response = await fetch('/api/paystack/initialize', {
+      const response = await fetch(`${API_URL}/api/paystack/initialize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, email: fiatEmail, amountUSD: 1.00 })
@@ -64,7 +65,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
       const txHash = payment.id || `0x_base_pay_${Date.now()}`;
       setMessage(`Payment Approved! Verifying transaction ${txHash.substring(0, 10)}...`);
 
-      const response = await fetch('/api/buy-tickets', {
+      const response = await fetch(`${API_URL}/api/buy-tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,7 +116,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
 
       setMessage("Subscription spend permission signed! Registering VIP subscription...");
 
-      const response = await fetch('/api/subscriptions/verify', {
+      const response = await fetch(`${API_URL}/api/subscriptions/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -151,7 +152,7 @@ export const BillingDashboard: React.FC<BillingDashboardProps> = ({ userId, user
     try {
       const mockBlockchainTxHash = `0x_crypto_tx_${Math.random().toString(36).substring(2, 16)}`;
       
-      const response = await fetch('/api/crypto/verify-hash', {
+      const response = await fetch(`${API_URL}/api/crypto/verify-hash`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

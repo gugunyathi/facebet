@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_URL } from '../utils/constants';
 
 const DEFAULT_TREND = "A hyper-saturated 1980s cassette-futurism portrait capturing a cartoonishly exaggerated, wide-eyed shock expression with an unhinged jaw";
 const DEFAULT_POT = "2,449.54";
@@ -102,7 +103,7 @@ export const TrendTicker: React.FC = () => {
 
   const fetchLiveGameStates = async () => {
     try {
-      const trendResponse = await fetch('/api/active-trend');
+      const trendResponse = await fetch(`${API_URL}/api/active-trend`);
       if (trendResponse.ok) {
         const trendData = await trendResponse.json();
         if (trendData?.currentTrend) {
@@ -114,7 +115,7 @@ export const TrendTicker: React.FC = () => {
     }
 
     try {
-      const statsResponse = await fetch('/api/game-stats');
+      const statsResponse = await fetch(`${API_URL}/api/game-stats`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         if (statsData?.potUSD) {

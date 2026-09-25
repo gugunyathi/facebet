@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { API_URL } from '../utils/constants';
 import { MdFavorite, MdShare, MdVerified, MdGeneratingTokens } from 'react-icons/md';
 
 interface FeedPost {
@@ -22,7 +23,7 @@ export const VerticalFeed: React.FC = () => {
     if (loading) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/vertical-feed?limit=5&skip=${skip}`);
+      const res = await fetch(`${API_URL}/api/vertical-feed?limit=5&skip=${skip}`);
       if (res.ok) {
         const data = await res.json();
         if (data.timeline && data.timeline.length > 0) {

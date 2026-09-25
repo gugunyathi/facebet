@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../utils/constants';
 
 interface PurchasePayload {
   userId: string;
@@ -18,7 +19,7 @@ export const useTransactionBridge = () => {
       // Calculate total seconds spent online since session authorization initialization
       const loginDurationSeconds = Math.floor((Date.now() - payload.loginTime) / 1000);
 
-      const response = await fetch('/api/buy-tickets', {
+      const response = await fetch(`${API_URL}/api/buy-tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

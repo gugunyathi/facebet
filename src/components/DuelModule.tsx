@@ -39,7 +39,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   useEffect(() => {
     const fetchActiveTrend = async () => {
       try {
-        const res = await fetch('/api/active-trend');
+        const res = await fetch(`${API_URL}/api/active-trend`);
         const data = await res.json();
         if (data?.currentTrend) {
           const keywords = parseExpressionKeywords(data.currentTrend);
@@ -252,7 +252,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
       const capturedFrame = capturePlayerFrame("p1LocalDuelView");
 
       // Call evaluate-frame endpoint
-      fetch('/api/evaluate-frame', {
+      fetch(`${API_URL}/api/evaluate-frame`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
