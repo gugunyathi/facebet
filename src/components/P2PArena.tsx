@@ -31,6 +31,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [aiExpressionState, setAiExpressionState] = useState<string>("Scanning your aura...");
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isDualTestMode, setIsDualTestMode] = useState<boolean>(false);
+  const [autoBattle, setAutoBattle] = useState<boolean>(true);
+  const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -67,6 +70,39 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       }
     }
   }, [videoContext?.remoteMediaStream]);
+
+  // Listen for WebSocket real-time P2P_MATCH_FOUND events
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    let socket: WebSocket | null = null;
+
+    try {
+      socket = new WebSocket(wsUrl);
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "P2P_MATCH_FOUND") {
+            const { player1PeerId, player2PeerId } = data;
+            if (activeUserId === player1PeerId && player2PeerId) {
+              setChatLog(prev => [...prev, "🤝 REAL PLAYER FOUND! Securing WebRTC direct video line..."]);
+              setGameMode('PVP');
+              initiateP2PConnectionCall(player2PeerId);
+            } else if (activeUserId === player2PeerId && player1PeerId) {
+              setChatLog(prev => [...prev, "🤝 CONNECTED TO CHALLENGER! Securing WebRTC direct video line..."]);
+              setGameMode('PVP');
+              initiateP2PConnectionCall(player1PeerId);
+            }
+          }
+        } catch {}
+      };
+    } catch {}
+
+    return () => {
+      try { socket?.close(); } catch {}
+    };
+  }, [activeUserId]);
 
   // Initialize and bind local camera media stream
   useEffect(() => {
@@ -321,15 +357,37 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             `🏆 MATCH COMPLETE! Player ${data.winner} Wins! (${data.reason})`,
             data.txHash ? `🔗 Base On-Chain Payout Tx: ${data.txHash}` : "✅ Payout Dispatched on Base Sepolia!"
           ]);
+          if (autoBattle) {
+            setAutoNextCountdown(3);
+          }
         }
       } catch (err) {
         console.error("Match result transmission exception error:", err);
         setWinnerId(1);
         setVerdictReason("Gemini AI evaluated Player 1 facial expression as 100% Web3 compliant.");
         setMatchStatus("COMPLETE");
+        if (autoBattle) {
+          setAutoNextCountdown(3);
+        }
       }
     }
   };
+
+  // Continuous Auto-Next Battle Loop Effect
+  useEffect(() => {
+    if (autoNextCountdown && autoNextCountdown > 0) {
+      const timer = setTimeout(() => {
+        setAutoNextCountdown(prev => (prev !== null && prev > 0 ? prev - 1 : null));
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (autoNextCountdown === 0) {
+      setAutoNextCountdown(null);
+      if (autoBattle) {
+        setChatLog(prev => [...prev, "⚡ AUTO BATTLE: Automatically searching queue for next player match..."]);
+        triggerMatchmakePipeline();
+      }
+    }
+  }, [autoNextCountdown, autoBattle]);
 
   return (
     <div
@@ -340,9 +398,48 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       {/* Top Victory Announcement Banner */}
       {matchStatus === "COMPLETE" && winnerId && (
         <div style={{ padding: '12px', background: 'rgba(255, 140, 0, 0.15)', border: '1px solid #ff8c00', borderRadius: '8px', marginBottom: '12px', textAlign: 'center' }}>
-          🏆 <strong>Player {winnerId} Wins!</strong> — {verdictReason}
+          <div className="font-extrabold text-amber-300 text-sm">
+            🏆 <strong>Player {winnerId} Wins!</strong> — {verdictReason}
+          </div>
+          {autoBattle && autoNextCountdown !== null && (
+            <div className="text-xs text-emerald-400 font-extrabold mt-1.5 flex items-center justify-center gap-1.5 animate-pulse">
+              <span>⚡ Next Battle Auto-Starting in {autoNextCountdown}s...</span>
+              <button
+                onClick={() => {
+                  setAutoNextCountdown(null);
+                  setAutoBattle(false);
+                }}
+                className="bg-red-950/80 hover:bg-red-900 text-red-300 text-[10px] px-2 py-0.5 rounded border border-red-500/40 cursor-pointer font-bold ml-2"
+              >
+                ⏸️ Pause Auto Loop
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Continuous Auto-Battle Status Control Banner */}
+      <div className="flex items-center justify-between bg-purple-950/60 border border-purple-500/40 px-3 py-1.5 rounded-xl mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-2 h-2 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
+          <div className="text-[11px] sm:text-xs truncate">
+            <span className="font-extrabold text-purple-200">Continuous Auto-Match: </span>
+            <span className={autoBattle ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+              {autoBattle ? "ACTIVE ⚡ (Auto-Connects Players)" : "PAUSED ⏸️"}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={() => setAutoBattle(prev => !prev)}
+          className={`text-[10px] sm:text-xs px-2.5 py-0.5 sm:py-1 rounded-lg font-black border transition cursor-pointer shrink-0 ${
+            autoBattle
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30"
+              : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+          }`}
+        >
+          {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
+        </button>
+      </div>
 
       {/* Header Bar with View Controls */}
       <div className="flex items-center justify-between gap-1 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap">
@@ -435,19 +532,51 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
 
-          {/* AI Hologram overlay: shown on top only when in PVAI mode and no live stream */}
-          {gameMode === 'PVAI' && !remoteVideoRef.current?.srcObject && (
+          {/* Player 2 Stream Overlay: Active Human Search Radar or AI Bot fallback if requested */}
+          {(!remoteVideoRef.current?.srcObject && !isDualTestMode) && (
             <div
               className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
               style={{ position: 'absolute', inset: 0, zIndex: 5 }}
             >
-              <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
-                <span className="text-2xl">🤖</span>
-              </div>
-              <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
-              <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
-                {aiExpressionState}
-              </div>
+              {gameMode === 'PVAI' ? (
+                <>
+                  <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                  <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
+                  <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
+                    {aiExpressionState}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-14 h-14 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-2 animate-pulse">
+                    <span className="text-2xl animate-bounce">🔍</span>
+                  </div>
+                  <h4 className="m-0 text-amber-200 text-xs font-extrabold uppercase tracking-wider">
+                    {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
+                  </h4>
+                  <p className="text-[10px] text-gray-400 max-w-[210px] my-1 font-medium leading-tight">
+                    Waiting for another real player to accept your $0.20 P2P duel request.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setIsDualTestMode(true);
+                      if (localVideoRef.current?.srcObject && remoteVideoRef.current) {
+                        remoteVideoRef.current.srcObject = localVideoRef.current.srcObject;
+                        remoteVideoRef.current.play().catch(() => {});
+                        setGameMode('PVP');
+                        setMatchStatus('LIVE');
+                        setCountdown(10);
+                        setChatLog(prev => [...prev, "📹 Dual Camera Preview (Test Mode) Enabled!"]);
+                      }
+                    }}
+                    className="mt-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
+                  >
+                    📹 Dual Camera Preview (Test Mode)
+                  </button>
+                </>
+              )}
             </div>
           )}
 

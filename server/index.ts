@@ -707,7 +707,7 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
           }
         }
 
-        // If after 8 seconds no human joined, assign AI Bot as fallback opponent
+        // If after 8 seconds no human joined, keep room in WAITING_FOR_OPPONENT state for pure human P2P
         let finalRoomCheck: any = null;
         if (isMongoConnected) {
           try {
@@ -719,7 +719,8 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
           finalRoomCheck = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
         }
 
-        if (finalRoomCheck) {
+        // Only assign AI bot if allowBotFallback is explicitly requested
+        if (finalRoomCheck && req.body?.allowBotFallback) {
           const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
           const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
 
@@ -742,7 +743,12 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
           });
         }
 
-        return res.status(201).json({ type: 'PVP', action: 'WAITING_FOR_OPPONENT', room: newRoomData });
+        return res.status(200).json({
+          type: 'PVP',
+          action: 'WAITING_FOR_OPPONENT',
+          room: newRoomData,
+          opponentPeerId: null
+        });
       }
     } catch (err: any) {
       console.error("Duel matchmake error:", err);
