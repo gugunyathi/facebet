@@ -26,9 +26,27 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   const [chatLog, setChatLog] = useState<string[]>([]);
   const [evaluationResult, setEvaluationResult] = useState<{ win: boolean; reason: string } | null>(null);
   const [activeMediaStream, setActiveMediaStream] = useState<MediaStream | null>(null);
+  const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const activeUserId = userSession?.peerId || currentPeerId;
   const activeWallet = userSession?.walletAddress || walletAddress;
+
+  const toggleFullscreen = () => {
+    if (!isFullscreen) {
+      if (containerRef.current?.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
 
   const triggerMatchmakePipeline = async () => {
     if (!userSession && onRequireAuth) {
@@ -192,29 +210,58 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   }, [countdown, gameMode, botData, activeUserId]);
 
   return (
-    <div className={`w-full rounded-2xl p-3 sm:p-5 text-white transition-all ${
-      gameMode === 'PVAI'
-        ? 'bg-gradient-to-br from-slate-950 via-purple-950/80 to-slate-950 border-2 border-purple-500 shadow-[0_0_30px_rgba(138,43,226,0.4)]'
-        : 'bg-[#0d1117] border border-amber-500/80 shadow-2xl'
-    }`}>
-      <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-white/10">
-        <h3 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase flex items-center gap-1.5 text-purple-200">
+    <div
+      ref={containerRef}
+      className={`w-full rounded-2xl p-3 sm:p-5 text-white transition-all ${
+        isFullscreen ? 'fixed inset-0 z-50 bg-[#0d1117] flex flex-col justify-between overflow-y-auto w-screen h-screen' : ''
+      } ${
+        gameMode === 'PVAI'
+          ? 'bg-gradient-to-br from-slate-950 via-purple-950/80 to-slate-950 border-2 border-purple-500 shadow-[0_0_30px_rgba(138,43,226,0.4)]'
+          : 'bg-[#0d1117] border border-amber-500/80 shadow-2xl'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-1 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap">
+        <h3 className="text-[11px] sm:text-sm font-extrabold tracking-wide uppercase flex items-center gap-1 text-purple-200 m-0 shrink-0">
           <span>🔮</span>
           <span>P2AI ARENA</span>
         </h3>
-        <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase shrink-0 ${
-          matchStatus === 'LIVE' ? 'bg-emerald-500 text-black animate-pulse' :
-          matchStatus === 'JUDGING_BY_AI' ? 'bg-amber-400 text-black animate-bounce' :
-          'bg-purple-900/60 text-purple-200 border border-purple-500/30'
-        }`}>
-          {matchStatus}
-        </span>
+
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Layout Orientation Switcher (Vertical Stack vs Horizontal Side-by-Side) */}
+          <button
+            onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+            className="bg-white/10 hover:bg-white/20 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-white/20 font-bold transition flex items-center gap-0.5 text-gray-200 cursor-pointer shrink-0"
+            title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+          >
+            <span>{layoutMode === 'horizontal' ? '📱 Stack' : '↔️ Side'}</span>
+          </button>
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={toggleFullscreen}
+            className="bg-indigo-600/80 hover:bg-indigo-500 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-indigo-400/40 font-extrabold transition flex items-center gap-0.5 text-white cursor-pointer shadow shrink-0"
+          >
+            <span>{isFullscreen ? '↙↗ Exit' : '⤢ Fullscreen'}</span>
+          </button>
+
+          <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase shrink-0 ${
+            matchStatus === 'LIVE' ? 'bg-emerald-500 text-black animate-pulse' :
+            matchStatus === 'JUDGING_BY_AI' ? 'bg-amber-400 text-black animate-bounce' :
+            'bg-purple-900/60 text-purple-200 border border-purple-500/30'
+          }`}>
+            {matchStatus}
+          </span>
+        </div>
       </div>
 
-      {/* Dual Arena Viewport - Always mounted so user camera stream is active & visible */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[220px] sm:h-[280px] mb-3">
+      {/* Dual Arena Viewport - Zero gap between player and AI hologram frames */}
+      <div className={`grid gap-0 min-h-[220px] mb-3 w-full ${
+        layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-2'
+      }`}>
         {/* Left Screen: Player Local Camera Stream */}
-        <div className="bg-black rounded-xl overflow-hidden border-2 border-blue-600 relative min-h-[160px] flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.3)]">
+        <div style={{
+          borderRadius: layoutMode === 'vertical' ? '12px 12px 0 0' : '12px 0 0 12px'
+        }} className="bg-black overflow-hidden border-2 border-blue-600 relative min-h-[160px] flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.3)]">
           <video id="p1LocalDuelView" autoPlay muted playsInline className="w-full h-full object-cover" />
           <div className="absolute top-2.5 left-2.5 bg-black/80 px-2.5 py-0.5 text-[10px] sm:text-xs rounded-full font-extrabold text-blue-400 border border-blue-500/40 shadow flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -223,7 +270,9 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
         </div>
 
         {/* Right Screen: AI Hologram Core Viewport */}
-        <div className="rounded-xl overflow-hidden relative flex flex-col items-center justify-center min-h-[160px] bg-[#07020d] border-2 border-purple-600 shadow-[inset_0_0_20px_rgba(138,43,226,0.5)]">
+        <div style={{
+          borderRadius: layoutMode === 'vertical' ? '0 0 12px 12px' : '0 12px 12px 0'
+        }} className="overflow-hidden relative flex flex-col items-center justify-center min-h-[160px] bg-[#07020d] border-2 border-purple-600 shadow-[inset_0_0_20px_rgba(138,43,226,0.5)]">
           {gameMode === 'PVP' ? (
             <video id="p2RemoteDuelView" autoPlay playsInline className="w-full h-full object-cover" />
           ) : (

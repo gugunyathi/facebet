@@ -59,22 +59,19 @@ if (MONGODB_URI && (MONGODB_URI.startsWith("mongodb://") || MONGODB_URI.startsWi
       isMongoConnected = true;
       console.log("Connected to MongoDB successfully");
     })
-    .catch((err) => {
+    .catch((_err) => {
       isMongoConnected = false;
-      console.log(`MongoDB notice: ${err.message}. Using high-performance in-memory session store.`);
+      console.log("Database session store initialized: using high-performance in-memory store.");
       // Disconnect mongoose driver from retrying bad credentials
       mongoose.disconnect().catch(() => {});
     });
 
-  mongoose.connection.on("error", (err) => {
+  mongoose.connection.on("error", () => {
     isMongoConnected = false;
-    // Suppress repeated background logs for bad auth
-    if (err?.message?.includes("bad auth") || err?.message?.includes("Authentication failed")) {
-      mongoose.disconnect().catch(() => {});
-    }
+    mongoose.disconnect().catch(() => {});
   });
 } else {
-  console.log("No remote MongoDB URI provided or invalid schema. Using in-memory store fallback.");
+  console.log("Database session store initialized: using in-memory store fallback.");
 }
 
 // In-memory session store fallback when MongoDB is not active
@@ -571,6 +568,48 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
     }
   });
 
+  // Helper to broadcast events to all connected WebSocket clients
+  const broadcastWSMessage = (eventObj: any) => {
+    try {
+      if (!wss) return;
+      const str = JSON.stringify(eventObj);
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(str);
+        }
+      });
+    } catch {}
+  };
+
+  // GET /api/duel/active-challenges — returns currently waiting human duel challenges
+  app.get("/api/duel/active-challenges", async (_req: Request, res: Response) => {
+    try {
+      let waitingRooms: any[] = [];
+      if (isMongoConnected) {
+        try {
+          waitingRooms = await (DuelRoom as any).find({ status: 'waiting' });
+        } catch {
+          waitingRooms = inMemoryDuelRooms.filter(r => r.status === 'waiting');
+        }
+      } else {
+        waitingRooms = inMemoryDuelRooms.filter(r => r.status === 'waiting');
+      }
+      return res.json({
+        success: true,
+        waitingCount: waitingRooms.length,
+        waitingRooms: waitingRooms.map(r => ({
+          roomId: r.roomId,
+          player1PeerId: r.player1PeerId,
+          player1Wallet: r.player1Wallet,
+          stakeAmountUSD: r.stakeAmountUSD,
+          createdAt: r.createdAt
+        }))
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // POST /api/duel/matchmake endpoint
   app.post("/api/duel/matchmake", async (req: Request, res: Response) => {
     try {
@@ -578,6 +617,7 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       const stake = stakeUSD || 0.20;
       const playerPeerId = peerId || userId;
 
+      // 1. Check if an existing human player is waiting in a room
       let availableRoom = null;
       if (isMongoConnected) {
         try {
@@ -596,8 +636,23 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         if (typeof availableRoom.save === 'function') {
           try { await availableRoom.save(); } catch {}
         }
-        return res.status(200).json({ type: 'PVP', action: 'START_DUEL', room: availableRoom, opponentPeerId: availableRoom.player1PeerId });
+
+        // Notify waiting challenger that a human accepted!
+        broadcastWSMessage({
+          event: "P2P_MATCH_FOUND",
+          roomId: availableRoom.roomId,
+          player1PeerId: availableRoom.player1PeerId,
+          player2PeerId: playerPeerId,
+        });
+
+        return res.status(200).json({
+          type: 'PVP',
+          action: 'START_DUEL',
+          room: availableRoom,
+          opponentPeerId: availableRoom.player1PeerId
+        });
       } else {
+        // Create new waiting room
         const generatedRoomId = `duel_${Math.random().toString(36).substring(2, 10)}`;
         const newRoomData = {
           roomId: generatedRoomId,
@@ -618,35 +673,67 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
           inMemoryDuelRooms.push(newRoomData);
         }
 
-        // Delay check: Wait 3.5 seconds to see if a human challenger joins
-        await new Promise(resolve => setTimeout(resolve, 3500));
+        // Broadcast human challenge request to all connected users (including those in P2PAI Arena)
+        broadcastWSMessage({
+          event: "HUMAN_DUEL_REQUEST",
+          challengerPeerId: playerPeerId,
+          walletAddress: walletAddress || `0xP1_${playerPeerId}`,
+          roomId: generatedRoomId,
+          timestamp: Date.now()
+        });
 
-        let checkRoomStillWaiting = null;
-        if (isMongoConnected) {
-          try {
-            checkRoomStillWaiting = await (DuelRoom as any).findOne({ roomId: generatedRoomId, status: 'waiting' });
-          } catch {
-            checkRoomStillWaiting = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
+        // Polling check: Wait up to 8 seconds checking if another human challenger joins
+        for (let attempt = 0; attempt < 8; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          let checkRoom: any = null;
+          if (isMongoConnected) {
+            try {
+              checkRoom = await (DuelRoom as any).findOne({ roomId: generatedRoomId });
+            } catch {
+              checkRoom = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId);
+            }
+          } else {
+            checkRoom = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId);
           }
-        } else {
-          checkRoomStillWaiting = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
+
+          if (checkRoom && checkRoom.status === 'active' && checkRoom.player2PeerId && !checkRoom.player2PeerId.startsWith('BOT_')) {
+            return res.status(200).json({
+              type: 'PVP',
+              action: 'START_DUEL',
+              room: checkRoom,
+              opponentPeerId: checkRoom.player2PeerId
+            });
+          }
         }
 
-        if (checkRoomStillWaiting) {
+        // If after 8 seconds no human joined, assign AI Bot as fallback opponent
+        let finalRoomCheck: any = null;
+        if (isMongoConnected) {
+          try {
+            finalRoomCheck = await (DuelRoom as any).findOne({ roomId: generatedRoomId, status: 'waiting' });
+          } catch {
+            finalRoomCheck = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
+          }
+        } else {
+          finalRoomCheck = inMemoryDuelRooms.find(r => r.roomId === generatedRoomId && r.status === 'waiting');
+        }
+
+        if (finalRoomCheck) {
           const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
           const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
 
-          checkRoomStillWaiting.player2PeerId = `BOT_${Math.random().toString(36).substring(2, 8)}`;
-          checkRoomStillWaiting.player2Wallet = `0x_AI_AGENT_${randomName.toUpperCase()}_VAULT`;
-          checkRoomStillWaiting.status = 'active';
-          if (typeof checkRoomStillWaiting.save === 'function') {
-            try { await checkRoomStillWaiting.save(); } catch {}
+          finalRoomCheck.player2PeerId = `BOT_${Math.random().toString(36).substring(2, 8)}`;
+          finalRoomCheck.player2Wallet = `0x_AI_AGENT_${randomName.toUpperCase()}_VAULT`;
+          finalRoomCheck.status = 'active';
+          if (typeof finalRoomCheck.save === 'function') {
+            try { await finalRoomCheck.save(); } catch {}
           }
 
           return res.status(200).json({
             type: 'PVAI',
             action: 'START_DUEL',
-            room: checkRoomStillWaiting,
+            room: finalRoomCheck,
             botMeta: {
               name: randomName,
               avatarSeed: Math.floor(Math.random() * 1000),

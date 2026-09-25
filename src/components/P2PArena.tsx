@@ -29,13 +29,44 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [botData, setBotData] = useState<any>(null);
   const [chatLog, setChatLog] = useState<string[]>([]);
   const [aiExpressionState, setAiExpressionState] = useState<string>("Scanning your aura...");
+  const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const activeUserId = userSession?.peerId || currentPeerId;
   const activeWallet = userSession?.walletAddress || walletAddress;
+
+  const toggleFullscreen = () => {
+    if (!isFullscreen) {
+      if (containerRef.current?.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  // Sync videoContext remoteMediaStream directly to remoteVideoRef when WebRTC stream connects
+  useEffect(() => {
+    const stream = videoContext?.remoteMediaStream;
+    if (stream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = stream;
+      remoteVideoRef.current.play().catch(() => {});
+      setGameMode('PVP');
+      if (matchStatus !== 'LIVE') {
+        setMatchStatus('LIVE');
+        setCountdown(10);
+      }
+    }
+  }, [videoContext?.remoteMediaStream]);
 
   // Initialize and bind local camera media stream
   useEffect(() => {
@@ -301,28 +332,49 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   };
 
   return (
-    <div style={{ width: '100%', background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '20px', color: '#fff' }}>
+    <div
+      ref={containerRef}
+      className={isFullscreen ? "fixed inset-0 z-50 bg-[#0d1117] p-3 flex flex-col justify-between overflow-y-auto w-screen h-screen" : "w-full bg-[#0d1117] border border-[#30363d] rounded-xl p-3 sm:p-5 text-white"}
+    >
 
       {/* Top Victory Announcement Banner */}
       {matchStatus === "COMPLETE" && winnerId && (
-        <div style={{ padding: '12px', background: 'rgba(255, 140, 0, 0.15)', border: '1px solid #ff8c00', borderRadius: '8px', marginBottom: '15px', textAlign: 'center' }}>
+        <div style={{ padding: '12px', background: 'rgba(255, 140, 0, 0.15)', border: '1px solid #ff8c00', borderRadius: '8px', marginBottom: '12px', textAlign: 'center' }}>
           🏆 <strong>Player {winnerId} Wins!</strong> — {verdictReason}
         </div>
       )}
 
-      {/* Header Bar */}
-      <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
-        <h3 className="text-sm font-extrabold tracking-wide uppercase flex items-center gap-2 text-purple-200 m-0">
+      {/* Header Bar with View Controls */}
+      <div className="flex items-center justify-between gap-1 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap">
+        <h3 className="text-[11px] sm:text-sm font-extrabold tracking-wide uppercase flex items-center gap-1 text-purple-200 m-0 shrink-0">
           <span>🔮</span>
-          <span>P2P ARENA DUEL</span>
+          <span>P2P ARENA</span>
         </h3>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Layout Orientation Switcher (Vertical Stack vs Horizontal Side-by-Side) */}
+          <button
+            onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+            className="bg-white/10 hover:bg-white/20 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-white/20 font-bold transition flex items-center gap-0.5 text-gray-200 cursor-pointer shrink-0"
+            title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+          >
+            <span>{layoutMode === 'horizontal' ? '📱 Stack' : '↔️ Side'}</span>
+          </button>
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={toggleFullscreen}
+            className="bg-indigo-600/80 hover:bg-indigo-500 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-indigo-400/40 font-extrabold transition flex items-center gap-0.5 text-white cursor-pointer shadow shrink-0"
+          >
+            <span>{isFullscreen ? '↙↗ Exit' : '⤢ Fullscreen'}</span>
+          </button>
+
           {countdown !== null && (
-            <span className="text-xs font-black text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded border border-amber-500/40 animate-pulse">
+            <span className="text-[10px] sm:text-[11px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40 animate-pulse shrink-0">
               ⏱️ {countdown}s
             </span>
           )}
-          <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase ${
+          <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase shrink-0 ${
             matchStatus === 'LIVE' ? 'bg-emerald-500 text-black animate-pulse' :
             matchStatus === 'AI_JUDGING' ? 'bg-amber-400 text-black animate-bounce' :
             matchStatus === 'COMPLETE' ? 'bg-amber-500 text-black font-extrabold' :
@@ -333,42 +385,44 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
       </div>
 
-      {/* Split-Screen Video Grid Container */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', minHeight: '340px', marginBottom: '20px' }}>
+      {/* Split-Screen Video Grid Container (Zero gap so frames connect directly) */}
+      <div
+        className={`grid gap-0 min-h-[300px] mb-3 w-full ${
+          layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-2'
+        }`}
+      >
 
         {/* Left Side: Player 1 Grid + Celebration Overlay Interface */}
         <div style={{
           background: '#000',
-          borderRadius: '8px',
+          borderRadius: layoutMode === 'vertical' ? '8px 8px 0 0' : '8px 0 0 8px',
           border: winnerId === 1 ? '4px solid #34a853' : '2px solid #0052ff',
           position: 'relative',
           overflow: 'hidden',
-          minHeight: '280px',
+          minHeight: isFullscreen ? '42vh' : '240px',
           boxShadow: winnerId === 1 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
         }}>
           <video id="p1LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.75)', padding: '4px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
+          <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.75)', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
             ● YOU (PLAYER 1)
           </div>
 
           {winnerId === 1 && (
             <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(52, 168, 83, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', zIndex: 20, animation: 'flashBorder 1s infinite alternate' }}>
-              <h1 style={{ fontSize: '36px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
+              <h1 style={{ fontSize: '32px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
               <p style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', margin: '6px 0 0 0' }}>Payout Dispatched via Base L2</p>
             </div>
           )}
         </div>
 
         {/* Right Side: Player 2 Grid + Celebration Overlay Interface */}
-        {/* FIX: The <video> element is ALWAYS mounted unconditionally so that remoteVideoRef.current */}
-        {/* is never null when PeerJS fires on('stream'). The AI hologram is an overlay on top. */}
         <div style={{
           background: '#000',
-          borderRadius: '8px',
+          borderRadius: layoutMode === 'vertical' ? '0 0 8px 8px' : '0 8px 8px 0',
           border: winnerId === 2 ? '4px solid #34a853' : '2px solid #ff0055',
           position: 'relative',
           overflow: 'hidden',
-          minHeight: '280px',
+          minHeight: isFullscreen ? '42vh' : '240px',
           boxShadow: winnerId === 2 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
         }}>
 
@@ -387,23 +441,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#07020d] text-center"
               style={{ position: 'absolute', inset: 0, zIndex: 5 }}
             >
-              <div className="w-16 h-16 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
-                <span className="text-3xl">🤖</span>
+              <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
+                <span className="text-2xl">🤖</span>
               </div>
-              <h4 className="m-0 text-purple-200 text-sm font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
+              <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
               <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
                 {aiExpressionState}
               </div>
             </div>
           )}
 
-          <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.75)', padding: '4px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
+          <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.75)', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
             ● OPPONENT (PLAYER 2)
           </div>
 
           {winnerId === 2 && (
             <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(52, 168, 83, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', zIndex: 20, animation: 'flashBorder 1s infinite alternate' }}>
-              <h1 style={{ fontSize: '36px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
+              <h1 style={{ fontSize: '32px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
               <p style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', margin: '6px 0 0 0' }}>Payout Dispatched via Base L2</p>
             </div>
           )}

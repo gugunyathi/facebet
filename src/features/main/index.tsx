@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { pay } from "@base-org/account";
 import { P2PArena } from "@/components/P2PArena";
 import { VideoProvider, API_URL } from "@/utils/constants";
@@ -21,9 +21,39 @@ const Main: React.FC<MainProps> = ({
   onBuyTicketsSuccess,
 }) => {
   const values = usePeer();
-  const [arenaMode, setArenaMode] = useState<"boss" | "p2p">("boss");
+  // By default match human users in P2P arena
+  const [arenaMode, setArenaMode] = useState<"boss" | "p2p">("p2p");
   const [isPaying, setIsPaying] = useState(false);
   const [payMessage, setPayMessage] = useState<string | null>(null);
+  const [activeChallenge, setActiveChallenge] = useState<any>(null);
+
+  // Sync WebSocket P2P challenge notifications
+  useEffect(() => {
+    if (values?.p2pChallengeNotification) {
+      setActiveChallenge(values.p2pChallengeNotification);
+    }
+  }, [values?.p2pChallengeNotification]);
+
+  // Periodic polling for waiting human duel challenges (backup for WebSocket)
+  useEffect(() => {
+    const checkActiveChallenges = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/duel/active-challenges`);
+        const data = await res.json();
+        if (data.success && data.waitingCount > 0) {
+          const myPeer = userSession?.peerId || values?.myPeerId;
+          const otherChallenge = data.waitingRooms.find((r: any) => r.player1PeerId !== myPeer);
+          if (otherChallenge) {
+            setActiveChallenge(otherChallenge);
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(checkActiveChallenges, 3500);
+    checkActiveChallenges();
+    return () => clearInterval(interval);
+  }, [userSession, values?.myPeerId]);
 
   const handleBasePay = async () => {
     setIsPaying(true);
@@ -77,48 +107,70 @@ const Main: React.FC<MainProps> = ({
     <VideoProvider.Provider value={values}>
       <div className="w-full h-full flex flex-col relative overflow-y-auto">
         {/* Arena Mode Switcher Bar & Base Pay Ticket Control */}
-        <div className="w-full bg-[#110c38] border-b border-[#644af1]/30 p-1.5 sm:p-2 flex flex-wrap items-center justify-between gap-2 z-10 shrink-0 px-3 sm:px-6">
-          <div className="flex items-center gap-2">
+        <div className="w-full bg-[#110c38] border-b border-[#644af1]/30 p-1.5 sm:p-2 flex items-center justify-between gap-1.5 sm:gap-2 z-10 shrink-0 px-2 sm:px-6 overflow-x-auto whitespace-nowrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => setArenaMode("boss")}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${arenaMode === "boss"
+              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[11px] sm:text-xs transition flex items-center gap-1 shrink-0 ${arenaMode === "boss"
                   ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow border border-purple-400/50"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
                 }`}
             >
               <span>🔮</span>
-              <span>P2AI Arena</span>
+              <span>P2AI</span>
             </button>
 
             <button
               onClick={() => setArenaMode("p2p")}
-              className={`px-2.5 sm:px-3 py-1 rounded-lg font-extrabold text-xs transition flex items-center gap-1.5 ${arenaMode === "p2p"
+              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[11px] sm:text-xs transition flex items-center gap-1 shrink-0 ${arenaMode === "p2p"
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
                 }`}
             >
               <span>⚔️</span>
-              <span>P2P Arena</span>
+              <span>P2P</span>
             </button>
           </div>
 
           {/* Quick Base USDC Ticket Purchase Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {payMessage && (
-              <span className="text-[11px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 animate-pulse">
+              <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 animate-pulse">
                 {payMessage}
               </span>
             )}
             <button
               onClick={handleBasePay}
               disabled={isPaying}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-xs px-3 py-1 rounded-lg shadow border border-blue-400/40 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-lg shadow border border-blue-400/40 transition active:scale-95 disabled:opacity-50 flex items-center gap-1 shrink-0"
             >
-              <span className="w-2 h-2 rounded-full bg-blue-300 animate-ping"></span>
-              <span>{isPaying ? "Opening Base Pay..." : "🔵 Base Pay ($1 = 10 Tix)"}</span>
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-300 animate-ping"></span>
+              <span>
+                {isPaying ? "Opening..." : "🔵 Base Pay ($1)"}
+              </span>
             </button>
           </div>
         </div>
+
+        {/* Human Challenger Waiting Banner (alerts users in P2PAI mode to switch immediately to P2P Arena) */}
+        {activeChallenge && (
+          <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 text-white p-2.5 px-4 flex flex-wrap items-center justify-between gap-2 shadow-2xl animate-pulse border-b-2 border-amber-300 z-20">
+            <div className="flex items-center gap-2 text-xs font-extrabold">
+              <span className="text-base animate-bounce">⚔️</span>
+              <span>REAL PLAYER CHALLENGER ONLINE! A live player ({activeChallenge.player1Wallet?.slice(0, 8) || activeChallenge.challengerPeerId?.slice(0, 8)}...) is requesting a $0.20 P2P Duel!</span>
+            </div>
+            <button
+              onClick={() => {
+                setArenaMode("p2p");
+                setActiveChallenge(null);
+                values?.clearChallengeNotification?.();
+              }}
+              className="bg-amber-300 hover:bg-amber-200 text-black font-black text-xs px-3.5 py-1.5 rounded-lg shadow-lg uppercase tracking-wider transition transform active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>⚡ Switch to P2P Arena & Accept Duel</span>
+            </button>
+          </div>
+        )}
 
         {/* Content View */}
         <div className="flex-1 w-full p-2 sm:p-4">

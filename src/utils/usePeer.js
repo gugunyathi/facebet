@@ -81,6 +81,8 @@ export default function usePeer() {
   const [mediaStream, setMediaStream] = useState(null);
   // State for remote stream — triggers React re-render when WebRTC stream arrives
   const [remoteMediaStream, setRemoteMediaStream] = useState(null);
+  // Real-time human duel challenge notification state
+  const [p2pChallengeNotification, setP2pChallengeNotification] = useState(null);
 
   const localStream = useRef();
   const remoteStream = useRef();
@@ -220,6 +222,18 @@ export default function usePeer() {
 
       if (onlineUsersCount !== undefined) {
         dispatch(setOnlineUsersCount(onlineUsersCount));
+        return;
+      }
+
+      if (event === "HUMAN_DUEL_REQUEST") {
+        if (messagePayload.challengerPeerId !== myPeerIdRef.current) {
+          setP2pChallengeNotification({
+            challengerPeerId: messagePayload.challengerPeerId,
+            walletAddress: messagePayload.walletAddress,
+            roomId: messagePayload.roomId,
+            timestamp: messagePayload.timestamp || Date.now(),
+          });
+        }
         return;
       }
 
@@ -480,5 +494,7 @@ export default function usePeer() {
     setUserSession,
     isSpectator,
     setIsSpectator,
+    p2pChallengeNotification,
+    clearChallengeNotification: () => setP2pChallengeNotification(null),
   };
 }
