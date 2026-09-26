@@ -12,6 +12,8 @@ interface MainProps {
   onRequireAuth: () => void;
   onAuthSuccess: (session: any) => void;
   onBuyTicketsSuccess: (tickets: number) => void;
+  autoBattle: boolean;
+  setAutoBattle: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const Main: React.FC<MainProps> = ({
@@ -19,6 +21,8 @@ const Main: React.FC<MainProps> = ({
   onRequireAuth,
   onAuthSuccess,
   onBuyTicketsSuccess,
+  autoBattle,
+  setAutoBattle,
 }) => {
   const values = usePeer();
   // By default match human users in P2P arena
@@ -180,6 +184,8 @@ const Main: React.FC<MainProps> = ({
                 userSession={userSession}
                 onRequireAuth={onRequireAuth}
                 onBuyTickets={handleBasePay}
+                autoBattle={autoBattle}
+                setAutoBattle={setAutoBattle}
               />
             </div>
           ) : (
@@ -188,6 +194,8 @@ const Main: React.FC<MainProps> = ({
                 userSession={userSession}
                 onRequireAuth={onRequireAuth}
                 onBuyTickets={handleBasePay}
+                autoBattle={autoBattle}
+                setAutoBattle={setAutoBattle}
               />
             </div>
           )}

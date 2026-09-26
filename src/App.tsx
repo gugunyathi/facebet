@@ -47,6 +47,8 @@ export function App() {
     return 'mainnet';
   });
 
+  const [autoBattle, setAutoBattle] = useState<boolean>(true);
+
   const handleAuthSuccess = (session: UserSessionData) => {
     setUserSession(session);
     try {
@@ -99,6 +101,10 @@ export function App() {
               onSelectPage={setActivePage}
               userSession={userSession}
               onLogout={handleLogout}
+              onOpenArcOnramp={() => setIsArcOnrampOpen(true)}
+              onOpenArcAppKit={() => setIsArcAppKitOpen(true)}
+              autoBattle={autoBattle}
+              setAutoBattle={setAutoBattle}
             />
 
             <div className="flex items-center space-x-1 sm:space-x-2 cursor-pointer shrink-0" onClick={() => setActivePage("arena")}>
@@ -151,25 +157,7 @@ export function App() {
           </div>
 
           <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
-            {/* Arc Fiat Onramp Button */}
-            <button
-              onClick={() => setIsArcOnrampOpen(true)}
-              className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-extrabold text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl shadow-lg transition flex items-center space-x-1 transform active:scale-95 shrink-0 border border-purple-400/40 cursor-pointer"
-              title="Buy USDC/EURC on Arc with Fiat & Cards"
-            >
-              <MdCreditCard className="w-3.5 h-3.5 text-purple-200 shrink-0" />
-              <span>Arc Onramp</span>
-            </button>
 
-            {/* Arc App Kit Hub Button */}
-            <button
-              onClick={() => setIsArcAppKitOpen(true)}
-              className="bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-400/50 font-extrabold text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl shadow-md transition flex items-center space-x-1 transform active:scale-95 shrink-0 cursor-pointer"
-              title="Arc App Kit Hub (Bridge, Swap, Send, Earn)"
-            >
-              <MdAccountBalanceWallet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-              <span>Arc Kit Hub</span>
-            </button>
 
             {/* Live Pool Banner */}
             <div className="hidden lg:flex items-center space-x-2 bg-purple-900/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">
@@ -220,6 +208,8 @@ export function App() {
               onRequireAuth={() => setIsWalletModalOpen(true)}
               onAuthSuccess={handleAuthSuccess}
               onBuyTicketsSuccess={handleBuyTickets}
+              autoBattle={autoBattle}
+              setAutoBattle={setAutoBattle}
             />
           )}
 

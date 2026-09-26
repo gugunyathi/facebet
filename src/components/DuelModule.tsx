@@ -9,6 +9,8 @@ interface DuelModuleProps {
   userSession?: any;
   onRequireAuth?: () => void;
   onBuyTickets?: () => void;
+  autoBattle?: boolean;
+  setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const DuelModule: React.FC<DuelModuleProps> = ({
@@ -17,6 +19,8 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   userSession,
   onRequireAuth,
   onBuyTickets,
+  autoBattle = true,
+  setAutoBattle,
 }) => {
   const videoContext = useContext(VideoProvider);
   const [gameMode, setGameMode] = useState<'PVP' | 'PVAI' | null>(null);
@@ -29,7 +33,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   const [activeMediaStream, setActiveMediaStream] = useState<MediaStream | null>(null);
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [autoBattle, setAutoBattle] = useState<boolean>(true);
+
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
 
   // Target Words Overlay State
@@ -313,28 +317,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
           : 'bg-[#0d1117] border border-amber-500/80 shadow-2xl'
       }`}
     >
-      {/* Continuous Auto-Battle Status Control Banner */}
-      <div className="flex items-center justify-between bg-purple-950/60 border border-purple-500/40 px-3 py-1.5 rounded-xl mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`w-2 h-2 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
-          <div className="text-[11px] sm:text-xs truncate">
-            <span className="font-extrabold text-purple-200">Continuous Auto-Match: </span>
-            <span className={autoBattle ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
-              {autoBattle ? "ACTIVE ⚡ (Auto-Connects Battles)" : "PAUSED ⏸️"}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => setAutoBattle(prev => !prev)}
-          className={`text-[10px] sm:text-xs px-2.5 py-0.5 sm:py-1 rounded-lg font-black border transition cursor-pointer shrink-0 ${
-            autoBattle
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30"
-              : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
-          }`}
-        >
-          {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
-        </button>
-      </div>
+
 
       <div className="flex items-center justify-between gap-1 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap">
         <h3 className="text-[11px] sm:text-sm font-extrabold tracking-wide uppercase flex items-center gap-1 text-purple-200 m-0 shrink-0">

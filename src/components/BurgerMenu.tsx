@@ -10,6 +10,7 @@ import {
   MdAccountBalanceWallet,
   MdStars,
   MdLogout,
+  MdCreditCard,
 } from "react-icons/md";
 import { UserSessionData } from "./WalletAuth";
 
@@ -18,6 +19,10 @@ interface BurgerMenuProps {
   onSelectPage: (page: "arena" | "about" | "settings" | "timeline") => void;
   userSession: UserSessionData | null;
   onLogout: () => void;
+  onOpenArcOnramp?: () => void;
+  onOpenArcAppKit?: () => void;
+  autoBattle?: boolean;
+  setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const BurgerMenu: React.FC<BurgerMenuProps> = ({
@@ -25,6 +30,10 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
   onSelectPage,
   userSession,
   onLogout,
+  onOpenArcOnramp,
+  onOpenArcAppKit,
+  autoBattle,
+  setAutoBattle,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -155,6 +164,60 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               </button>
             </div>
           )}
+        </div>
+
+        {/* Global Controls */}
+        <div className="p-3 border-b border-white/10 space-y-3">
+          {/* Continuous Auto-Battle Status Control Banner */}
+          <div className="flex flex-col bg-purple-950/60 border border-purple-500/40 p-2.5 rounded-xl gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`w-2 h-2 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
+              <div className="text-[11px] sm:text-xs truncate">
+                <span className="font-extrabold text-purple-200">Continuous Auto-Match: </span>
+                <span className={autoBattle ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                  {autoBattle ? "ACTIVE ⚡" : "PAUSED ⏸️"}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoBattle?.(prev => !prev)}
+              className={`w-full text-xs py-1.5 rounded-lg font-black border transition cursor-pointer shrink-0 ${
+                autoBattle
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30"
+                  : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+              }`}
+            >
+              {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Arc Fiat Onramp Button */}
+            <button
+              onClick={() => {
+                onOpenArcOnramp?.();
+                setIsOpen(false);
+              }}
+              className="flex-1 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-lg transition flex justify-center items-center space-x-1 border border-purple-400/40 cursor-pointer"
+              title="Buy USDC/EURC on Arc with Fiat & Cards"
+            >
+              <MdCreditCard className="w-3.5 h-3.5 text-purple-200 shrink-0" />
+              <span>Arc Onramp</span>
+            </button>
+
+            {/* Arc App Kit Hub Button */}
+            <button
+              onClick={() => {
+                onOpenArcAppKit?.();
+                setIsOpen(false);
+              }}
+              className="flex-1 bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-400/50 font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-md transition flex justify-center items-center space-x-1 cursor-pointer"
+              title="Arc App Kit Hub (Bridge, Swap, Send, Earn)"
+            >
+              <MdAccountBalanceWallet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span>Arc Kit Hub</span>
+            </button>
+          </div>
         </div>
 
         {/* Navigation Items */}

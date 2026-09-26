@@ -9,6 +9,8 @@ interface P2PArenaProps {
   userSession?: any;
   onRequireAuth?: () => void;
   onBuyTickets?: () => void;
+  autoBattle?: boolean;
+  setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface ArenaPlayerInfo {
@@ -39,6 +41,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   userSession,
   onRequireAuth,
   onBuyTickets,
+  autoBattle = true,
+  setAutoBattle,
 }) => {
   const videoContext = useContext(VideoProvider);
   const [activePeer, setActivePeer] = useState<any>(null);
@@ -57,7 +61,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isDualTestMode, setIsDualTestMode] = useState<boolean>(false);
   const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
-  const [autoBattle, setAutoBattle] = useState<boolean>(true);
+
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2' | 'QUEUED' | 'SPECTATOR'>('SPECTATOR');
   const [bidAmount, setBidAmount] = useState<number>(0.20);
@@ -896,7 +900,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               <button
                 onClick={() => {
                   setAutoNextCountdown(null);
-                  setAutoBattle(false);
+                  setAutoBattle?.(false);
                 }}
                 className="bg-red-950/80 hover:bg-red-900 text-red-300 text-[10px] px-2 py-0.5 rounded border border-red-500/40 cursor-pointer font-bold ml-2"
               >
@@ -907,28 +911,6 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
       )}
 
-      {/* Continuous Auto-Battle Status Control Banner */}
-      <div className="flex items-center justify-between bg-purple-950/60 border border-purple-500/40 px-3 py-1.5 rounded-xl mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`w-2 h-2 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
-          <div className="text-[11px] sm:text-xs truncate">
-            <span className="font-extrabold text-purple-200">Continuous Auto-Match: </span>
-            <span className={autoBattle ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
-              {autoBattle ? "ACTIVE ⚡ (Auto-Connects Players)" : "PAUSED ⏸️"}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => setAutoBattle(prev => !prev)}
-          className={`text-[10px] sm:text-xs px-2.5 py-0.5 sm:py-1 rounded-lg font-black border transition cursor-pointer shrink-0 ${
-            autoBattle
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30"
-              : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
-          }`}
-        >
-          {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
-        </button>
-      </div>
 
       {/* Header Bar with View Controls & Queue Summary */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
@@ -1043,81 +1025,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
       </div>
 
-      {/* Arena Queue & Bid Action Panel */}
-      <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/80 to-blue-950/80 border border-purple-500/40 rounded-xl p-2.5 sm:p-3 mb-3 shadow-lg">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
-          
-          {/* Bid / Bet Amount Selector */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 min-w-0">
-            <span className="text-[10px] sm:text-xs font-extrabold text-purple-200 uppercase tracking-wide shrink-0">
-              💰 <span className="hidden sm:inline">Bet / </span>Bid:
-            </span>
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
-              {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setBidAmount(amt)}
-                  className={`text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition cursor-pointer shrink-0 whitespace-nowrap ${
-                    bidAmount === amt
-                      ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-105"
-                      : "bg-white/5 hover:bg-white/15 text-gray-300 border-white/10"
-                  }`}
-                >
-                  ${amt.toFixed(2)} <span className="hidden md:inline">{amt > 0.20 ? "⚡ Priority" : ""}</span>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Queue Action Button */}
-          <div className="w-full sm:w-auto">
-            {myRole === 'QUEUED' ? (
-              <button
-                onClick={handleLeaveArenaQueue}
-                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-black font-black text-xs px-3 sm:px-4 py-2 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5 animate-pulse"
-              >
-                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Leave</span>
-              </button>
-            ) : myRole === 'SPECTATOR' ? (
-              <button
-                onClick={handleJoinArenaQueue}
-                className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs px-4 sm:px-5 py-2 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>⚔️ JOIN QUEUE (${bidAmount.toFixed(2)})</span>
-              </button>
-            ) : (
-              <div className="w-full sm:w-auto bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5">
-                <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Democratized 10-Play Rule Indicator Banner */}
-        <div className="mt-2 pt-2 border-t border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px] sm:text-[11px] text-gray-300">
-          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-            <span className="font-extrabold text-amber-300">👑 Winner Stays On</span>
-            <span className="text-gray-500">•</span>
-            <span className="hidden sm:inline">Higher bids jump queue</span>
-            <span className="hidden sm:inline text-gray-500">•</span>
-            <span className="text-purple-300 font-semibold">
-              Matches: <strong className="text-white">#{arenaState.matchCounter}</strong>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
-            {arenaState.isDemocratizedTurn ? (
-              <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40">
-                ⚖️ MATCH #{arenaState.matchCounter} IS DEMOCRATIZED! Longest-waiting regular player turn!
-              </span>
-            ) : (
-              <span className="text-purple-300 font-medium">
-                ⚖️ Regular Democratized Turn: <strong className="text-amber-300">in {10 - (arenaState.matchCounter % 10)} plays</strong>
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Split-Screen Video Grid Container with Wallet Display Headers */}
       <div
@@ -1417,6 +1325,82 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               </div>
             )
           )}
+        </div>
+      </div>
+
+      {/* Arena Queue & Bid Action Panel */}
+      <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/80 to-blue-950/80 border border-purple-500/40 rounded-xl p-2.5 sm:p-3 mt-3 shadow-lg">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+          
+          {/* Bid / Bet Amount Selector */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="text-[10px] sm:text-xs font-extrabold text-purple-200 uppercase tracking-wide shrink-0">
+              💰 <span className="hidden sm:inline">Bet / </span>Bid:
+            </span>
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
+              {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setBidAmount(amt)}
+                  className={`text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition cursor-pointer shrink-0 whitespace-nowrap ${
+                    bidAmount === amt
+                      ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-105"
+                      : "bg-white/5 hover:bg-white/15 text-gray-300 border-white/10"
+                  }`}
+                >
+                  ${amt.toFixed(2)} <span className="hidden md:inline">{amt > 0.20 ? "⚡ Priority" : ""}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Queue Action Button */}
+          <div className="w-full sm:w-auto">
+            {myRole === 'QUEUED' ? (
+              <button
+                onClick={handleLeaveArenaQueue}
+                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-black font-black text-xs px-3 sm:px-4 py-2 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5 animate-pulse"
+              >
+                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Leave</span>
+              </button>
+            ) : myRole === 'SPECTATOR' ? (
+              <button
+                onClick={handleJoinArenaQueue}
+                className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs px-4 sm:px-5 py-2 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>⚔️ JOIN QUEUE (${bidAmount.toFixed(2)})</span>
+              </button>
+            ) : (
+              <div className="w-full sm:w-auto bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5">
+                <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Democratized 10-Play Rule Indicator Banner */}
+        <div className="mt-2 pt-2 border-t border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px] sm:text-[11px] text-gray-300">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+            <span className="font-extrabold text-amber-300">👑 Winner Stays On</span>
+            <span className="text-gray-500">•</span>
+            <span className="hidden sm:inline">Higher bids jump queue</span>
+            <span className="hidden sm:inline text-gray-500">•</span>
+            <span className="text-purple-300 font-semibold">
+              Matches: <strong className="text-white">#{arenaState.matchCounter}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
+            {arenaState.isDemocratizedTurn ? (
+              <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40">
+                ⚖️ MATCH #{arenaState.matchCounter} IS DEMOCRATIZED! Longest-waiting regular player turn!
+              </span>
+            ) : (
+              <span className="text-purple-300 font-medium">
+                ⚖️ Regular Democratized Turn: <strong className="text-amber-300">in {10 - (arenaState.matchCounter % 10)} plays</strong>
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
