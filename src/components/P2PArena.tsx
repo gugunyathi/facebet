@@ -247,10 +247,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
     import('peerjs').then(({ default: Peer }) => {
       const peer = new Peer(activeUserId, {
-        host: import.meta.env.VITE_PEERJS_HOST || "0.peerjs.com",
-        port: import.meta.env.VITE_PEERJS_PORT ? parseInt(import.meta.env.VITE_PEERJS_PORT) : 443,
-        path: import.meta.env.VITE_PEERJS_PATH || "/",
-        secure: import.meta.env.VITE_PEERJS_SECURE !== "false",
+        host: (import.meta as any).env.VITE_PEERJS_HOST || "0.peerjs.com",
+        port: (import.meta as any).env.VITE_PEERJS_PORT ? parseInt((import.meta as any).env.VITE_PEERJS_PORT) : 443,
+        path: (import.meta as any).env.VITE_PEERJS_PATH || "/",
+        secure: (import.meta as any).env.VITE_PEERJS_SECURE !== "false",
       });
 
       peer.on('open', (id) => {
