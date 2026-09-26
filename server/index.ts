@@ -1574,37 +1574,78 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       }
 
       // --- KING OF THE HILL ARENA QUEUE ROTATION LOGIC ---
-      arenaMatchCounter++;
-      arenaMatchStatus = 'COMPLETE';
+      // 1. Helper to deduct tickets and check if a user is bankrupt
+      const checkAndDeductTicket = async (peerId: string): Promise<boolean> => {
+        if (!peerId || peerId.startsWith('BOT_')) return true;
+        if (isMongoConnected) {
+          try {
+            const session = await (UserSession as any).findOneAndUpdate(
+              { peerId, availableTickets: { $gt: 0 } },
+              { $inc: { availableTickets: -1 } },
+              { new: true }
+            );
+            if (session) return true;
+          } catch {}
+        }
+        const existing = memorySessions.get(peerId);
+        if (existing && existing.availableTickets > 0) {
+          existing.availableTickets -= 1;
+          return true;
+        }
+        return false;
+      };
+
+      // 2. Validate current players' balances
+      const kingHasTickets = arenaKingPlayer ? await checkAndDeductTicket(arenaKingPlayer.userId) : false;
+      const challengerHasTickets = arenaChallengerPlayer ? await checkAndDeductTicket(arenaChallengerPlayer.userId) : false;
 
       let loserPlayer: ArenaQueuedPlayer | null = null;
+      let winnerPlayer: ArenaQueuedPlayer | null = null;
 
       if (verdict.winner === 1) {
-        // Player 1 (King) stays on
-        if (arenaKingPlayer) {
-          arenaKingPlayer.consecutiveWins = (arenaKingPlayer.consecutiveWins || 0) + 1;
-        }
+        winnerPlayer = arenaKingPlayer;
         loserPlayer = arenaChallengerPlayer;
+        if (arenaKingPlayer) arenaKingPlayer.consecutiveWins = (arenaKingPlayer.consecutiveWins || 0) + 1;
       } else {
-        // Player 2 (Challenger) defeats King and takes over Player 1 spot!
+        winnerPlayer = arenaChallengerPlayer;
         loserPlayer = arenaKingPlayer;
-        if (arenaChallengerPlayer) {
-          arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+        if (arenaChallengerPlayer) arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+      }
+
+      // Eject players who went bankrupt
+      if (!kingHasTickets && arenaKingPlayer) {
+        console.log(`⚠️ Match loop broken: King ${arenaKingPlayer.userName} is out of tickets.`);
+        arenaKingPlayer = null;
+      }
+      if (!challengerHasTickets && arenaChallengerPlayer) {
+        console.log(`⚠️ Match loop broken: Challenger ${arenaChallengerPlayer.userName} is out of tickets.`);
+        arenaChallengerPlayer = null;
+      }
+
+      // 3. 🔄 Dynamic Queue Evaluation
+      if (arenaQueue.length > 0) {
+        console.log("👥 Spectators waiting in line. Executing standard queue rotation...");
+        
+        // Push human loser to back of queue IF they aren't bankrupt
+        if (loserPlayer && !loserPlayer.userId.startsWith('BOT_') && (verdict.winner === 1 ? challengerHasTickets : kingHasTickets)) {
+          loserPlayer.joinedAt = Date.now();
+          loserPlayer.consecutiveWins = 0;
+          arenaQueue = arenaQueue.filter(p => p.userId !== loserPlayer!.userId);
+          arenaQueue.push(loserPlayer);
         }
+
+        // Pull next challenger
+        arenaChallengerPlayer = getNextChallenger();
+        if (arenaChallengerPlayer) {
+          await checkAndDeductTicket(arenaChallengerPlayer.userId);
+        }
+      } else {
+        console.log(`🔄 Queue is empty! Keeping King (${arenaKingPlayer?.userName || 'N/A'}) and Challenger (${arenaChallengerPlayer?.userName || 'N/A'}) in slots for an instant rematch.`);
+        // Rematch loop! We keep them exactly where they are.
+        // We already deducted tickets in step 2 for the current iteration!
       }
 
-      // Automatically re-queue the loser into the waiting queue if human
-      if (loserPlayer && !loserPlayer.userId.startsWith('BOT_')) {
-        loserPlayer.joinedAt = Date.now();
-        loserPlayer.consecutiveWins = 0;
-        arenaQueue = arenaQueue.filter(p => p.userId !== loserPlayer!.userId);
-        arenaQueue.push(loserPlayer);
-      }
-
-      // Promote next challenger from queue based on the 10-play democratization rule
-      arenaChallengerPlayer = getNextChallenger();
-
-      // If no human player is waiting in queue, generate AI Hologram Boss filler so King can keep playing
+      // 4. Fill empty slots with AI if players were evicted and queue is still empty
       if (!arenaChallengerPlayer) {
         const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
         const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
@@ -1618,6 +1659,14 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
           consecutiveWins: 0
         };
       }
+      if (!arenaKingPlayer && arenaChallengerPlayer) {
+         // If king is missing but challenger exists, promote challenger to King
+         arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+         arenaChallengerPlayer = null;
+      }
+
+      arenaMatchCounter += 1;
+      arenaMatchStatus = 'LIVE';
 
       // Broadcast WebRTC match setup for King & new Challenger
       if (arenaKingPlayer && arenaChallengerPlayer) {
