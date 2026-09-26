@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
@@ -121,12 +121,76 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     return stored;
   });
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const p1RemoteVideoRef = useRef<HTMLVideoElement>(null);
-  const p2RemoteVideoRef = useRef<HTMLVideoElement>(null);
+  const p1VideoRef = useRef<HTMLVideoElement | null>(null);
+  const p2VideoRef = useRef<HTMLVideoElement | null>(null);
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
   const secondaryMediaStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic rotational stream mapping helper: maps streams based on myRole and current match state
+  const handleStreamMapping = useCallback(() => {
+    const localStream = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+    const remoteStream = remoteStreamRef.current || videoContext?.remoteMediaStream || null;
+
+    if (isDualTestMode && localStream) {
+      if (p1VideoRef.current) {
+        if (p1VideoRef.current.srcObject !== localStream) p1VideoRef.current.srcObject = localStream;
+        p1VideoRef.current.muted = true;
+        p1VideoRef.current.play().catch(() => {});
+      }
+      if (p2VideoRef.current) {
+        const stream2 = secondaryMediaStreamRef.current || localStream;
+        if (p2VideoRef.current.srcObject !== stream2) p2VideoRef.current.srcObject = stream2;
+        p2VideoRef.current.muted = true;
+        p2VideoRef.current.play().catch(() => {});
+      }
+      return;
+    }
+
+    // SCENARIO A: You are Player 1 (King / Host)
+    if (myRole === 'PLAYER_1') {
+      if (p1VideoRef.current && localStream) {
+        if (p1VideoRef.current.srcObject !== localStream) p1VideoRef.current.srcObject = localStream;
+        p1VideoRef.current.muted = true;
+        p1VideoRef.current.play().catch(() => {});
+      }
+      if (p2VideoRef.current) {
+        if (remoteStream && p2VideoRef.current.srcObject !== remoteStream) {
+          p2VideoRef.current.srcObject = remoteStream;
+          p2VideoRef.current.play().catch(() => {});
+        } else if (!remoteStream && gameMode !== 'PVAI') {
+          p2VideoRef.current.srcObject = null;
+        }
+        p2VideoRef.current.muted = false;
+      }
+    }
+    // SCENARIO B: You are Player 2 (Challenger)
+    else if (myRole === 'PLAYER_2') {
+      if (p2VideoRef.current && localStream) {
+        if (p2VideoRef.current.srcObject !== localStream) p2VideoRef.current.srcObject = localStream;
+        p2VideoRef.current.muted = true;
+        p2VideoRef.current.play().catch(() => {});
+      }
+      if (p1VideoRef.current) {
+        if (remoteStream && p1VideoRef.current.srcObject !== remoteStream) {
+          p1VideoRef.current.srcObject = remoteStream;
+          p1VideoRef.current.play().catch(() => {});
+        }
+        p1VideoRef.current.muted = false;
+      }
+    }
+    // SCENARIO C: You are a Spectator / Queued watching the match
+    else {
+      if (p1VideoRef.current && remoteStream) {
+        if (p1VideoRef.current.srcObject !== remoteStream) {
+          p1VideoRef.current.srcObject = remoteStream;
+          p1VideoRef.current.play().catch(() => {});
+        }
+        p1VideoRef.current.muted = false;
+      }
+    }
+  }, [myRole, videoContext?.remoteMediaStream, videoContext?.mediaStream, isDualTestMode, gameMode]);
 
   // Multi-camera input device state
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
@@ -176,21 +240,30 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
   };
 
-  // Sync videoContext remoteMediaStream directly to player remote video ref when WebRTC stream connects
+  // Sync videoContext remoteMediaStream directly to remote stream ref and run handleStreamMapping
   useEffect(() => {
     const stream = videoContext?.remoteMediaStream;
-    const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
-    if (stream && targetRef) {
-      targetRef.srcObject = stream;
-      targetRef.play().catch(() => {});
+    if (stream) {
+      remoteStreamRef.current = stream;
       setHasRemoteStream(true);
       setGameMode('PVP');
       if (matchStatus !== 'LIVE') {
         setMatchStatus('LIVE');
         setCountdown(10);
       }
+      handleStreamMapping();
     }
-  }, [videoContext?.remoteMediaStream, myRole]);
+  }, [videoContext?.remoteMediaStream, handleStreamMapping, matchStatus]);
+
+  // Re-evaluate stream mappings whenever match or role shifts
+  useEffect(() => {
+    handleStreamMapping();
+  }, [handleStreamMapping, arenaState]);
+
+  // Re-evaluate stream mappings when test mode toggles
+  useEffect(() => {
+    handleStreamMapping();
+  }, [handleStreamMapping, isDualTestMode]);
 
   // Listen for WebSocket real-time Arena state updates and P2P_MATCH_FOUND events
   useEffect(() => {
@@ -336,7 +409,6 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               audio: false
             });
           } catch {
-            // Fallback if exact device ID fails or hardware locked
             try {
               stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             } catch {}
@@ -358,12 +430,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         if (isSubscribed && stream1) {
           activeMediaStreamRef.current = stream1;
-          if (localVideoRef.current) {
-            localVideoRef.current.muted = true;
-            localVideoRef.current.playsInline = true;
-            localVideoRef.current.srcObject = stream1;
-            localVideoRef.current.play().catch(() => {});
-          }
+          handleStreamMapping();
         }
       } catch (err) {
         console.warn("P1 Camera stream setup note:", err);
@@ -378,11 +445,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           });
           if (isSubscribed && stream2) {
             secondaryMediaStreamRef.current = stream2;
-            if (p2RemoteVideoRef.current) {
-              p2RemoteVideoRef.current.srcObject = stream2;
-              p2RemoteVideoRef.current.play().catch(() => {});
-              setHasRemoteStream(true);
-            }
+            handleStreamMapping();
           }
         } catch (err) {
           console.warn("P2 Secondary Camera stream setup note:", err);
@@ -395,7 +458,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     return () => {
       isSubscribed = false;
     };
-  }, [p1DeviceId, p2DeviceId, videoContext]);
+  }, [p1DeviceId, p2DeviceId, videoContext, handleStreamMapping]);
 
   // PeerJS Incoming Call Media Event Listener Loop
   useEffect(() => {
@@ -413,11 +476,6 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           } catch {}
         }
 
-        if (localVideoRef.current && localStream) {
-          localVideoRef.current.srcObject = localStream;
-          localVideoRef.current.play().catch(() => {});
-        }
-
         if (localStream) {
           incomingCall.answer(localStream);
         } else {
@@ -426,22 +484,16 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
           console.log("🎥 Remote P2P video stream received & bound!");
-          setTimeout(() => {
-            const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
-            if (targetRef) {
-              targetRef.srcObject = remoteStream;
-              targetRef.play().catch((e) => console.error("Autoplay blocked:", e));
-              setHasRemoteStream(true);
-            }
-          }, 100);
+          remoteStreamRef.current = remoteStream;
+          setHasRemoteStream(true);
+          setGameMode('PVP');
+          setWinnerId(null);
+          setVerdictReason("");
+          setMatchStatus("LIVE");
+          setCountdown(10);
+          setChatLog(prev => [...prev, "🤝 WebRTC P2P Direct Video Line Established! Match LIVE."]);
+          handleStreamMapping();
         });
-
-        setGameMode('PVP');
-        setWinnerId(null);
-        setVerdictReason("");
-        setMatchStatus("LIVE");
-        setCountdown(10);
-        setChatLog(prev => [...prev, "🤝 WebRTC P2P Direct Video Line Established! Match LIVE."]);
       };
 
       getStreamAndAnswer();
@@ -452,7 +504,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     return () => {
       activePeer.off?.('call', handleIncomingCall);
     };
-  }, [activePeer, myRole]);
+  }, [activePeer, handleStreamMapping]);
 
   // Outgoing P2P Connection Initiator
   const initiateP2PConnectionCall = (targetOpponentPeerId: string) => {
@@ -467,11 +519,6 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         } catch {}
       }
 
-      if (localVideoRef.current && localStream) {
-        localVideoRef.current.srcObject = localStream;
-        localVideoRef.current.play().catch(() => {});
-      }
-
       if (!localStream) return;
 
       console.log(`📞 Dialing opponent node (${targetOpponentPeerId})...`);
@@ -479,22 +526,16 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
       call.on('stream', (remoteStream: MediaStream) => {
         console.log("🎥 Remote opponent video stream attached!");
-        setTimeout(() => {
-          const targetRef = myRole === 'PLAYER_2' ? p1RemoteVideoRef.current : p2RemoteVideoRef.current;
-          if (targetRef) {
-            targetRef.srcObject = remoteStream;
-            targetRef.play().catch((e) => console.error("Autoplay blocked:", e));
-            setHasRemoteStream(true);
-          }
-        }, 100);
+        remoteStreamRef.current = remoteStream;
+        setHasRemoteStream(true);
+        setGameMode('PVP');
+        setWinnerId(null);
+        setVerdictReason("");
+        setMatchStatus("LIVE");
+        setCountdown(10);
+        setChatLog(prev => [...prev, `⚔️ Match Initiated vs Opponent Node (${targetOpponentPeerId.slice(0, 8)}...)`]);
+        handleStreamMapping();
       });
-
-      setGameMode('PVP');
-      setWinnerId(null);
-      setVerdictReason("");
-      setMatchStatus("LIVE");
-      setCountdown(10);
-      setChatLog(prev => [...prev, `⚔️ Match Initiated vs Opponent Node (${targetOpponentPeerId.slice(0, 8)}...)`]);
     };
 
     getStreamAndCall();
@@ -508,8 +549,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
 
     if (!isDualTestMode) {
-      if (p1RemoteVideoRef.current) p1RemoteVideoRef.current.srcObject = null;
-      if (p2RemoteVideoRef.current) p2RemoteVideoRef.current.srcObject = null;
+      // Clear streams via new dynamic refs
+      if (p1VideoRef.current) p1VideoRef.current.srcObject = null;
+      if (p2VideoRef.current) p2VideoRef.current.srcObject = null;
+      remoteStreamRef.current = null;
       setHasRemoteStream(false);
     }
 
@@ -604,8 +647,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       return canvas.toDataURL('image/jpeg', 0.40).split(',')[1];
     };
 
-    const p1VideoEl = myRole === 'PLAYER_1' ? localVideoRef.current : p1RemoteVideoRef.current;
-    const p2VideoEl = myRole === 'PLAYER_2' ? localVideoRef.current : p2RemoteVideoRef.current;
+    const p1VideoEl = p1VideoRef.current;
+    const p2VideoEl = p2VideoRef.current;
 
     const p1Frame = captureFrame(p1VideoEl) || "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
     const p2Frame = captureFrame(p2VideoEl) || p1Frame;
@@ -768,21 +811,22 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             onClick={() => {
               if (isDualTestMode) {
                 setIsDualTestMode(false);
-                if (p2RemoteVideoRef.current) {
-                  p2RemoteVideoRef.current.srcObject = null;
+                if (p2VideoRef.current) {
+                  p2VideoRef.current.srcObject = null;
                 }
                 setHasRemoteStream(false);
+                handleStreamMapping();
                 setChatLog(prev => [...prev, "🔍 Returned to Real P2P Searching Radar."]);
               } else {
-                setIsDualTestMode(true);
-                if (localVideoRef.current?.srcObject && p2RemoteVideoRef.current) {
-                  p2RemoteVideoRef.current.srcObject = secondaryMediaStreamRef.current || localVideoRef.current.srcObject;
-                  p2RemoteVideoRef.current.play().catch(() => {});
+                const localStream = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+                if (localStream) {
+                  setIsDualTestMode(true);
                   setHasRemoteStream(true);
                   setGameMode('PVP');
                   setMatchStatus('LIVE');
                   setCountdown(10);
                   setChatLog(prev => [...prev, "📹 Solo Mirror / Dual Cam Test Mode Enabled!"]);
+                  // handleStreamMapping will fire via isDualTestMode effect
                 }
               }
             }}
@@ -947,21 +991,15 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               </div>
             </div>
 
-            {myRole === 'PLAYER_1' ? (
-              <video id="p1LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <>
-                <video id="p1RemoteDuelView" ref={p1RemoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                {(!hasRemoteStream && !isDualTestMode) && (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center absolute inset-0 z-10 pt-16">
-                    <div className="w-10 h-10 rounded-full border-2 border-blue-500 shadow-[0_0_20px_#0052ff] flex items-center justify-center mb-1.5 animate-pulse">
-                      <span className="text-lg animate-spin">🌀</span>
-                    </div>
-                    <h5 className="m-0 text-blue-200 text-[11px] sm:text-xs font-extrabold uppercase">Connecting to Player 1...</h5>
-                    <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] mt-0.5">Establishing direct WebRTC video line.</p>
-                  </div>
-                )}
-              </>
+            <video id="p1DuelView" ref={p1VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_1'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            {(myRole !== 'PLAYER_1' && !hasRemoteStream && !isDualTestMode) && (
+              <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center absolute inset-0 z-10 pt-16">
+                <div className="w-10 h-10 rounded-full border-2 border-blue-500 shadow-[0_0_20px_#0052ff] flex items-center justify-center mb-1.5 animate-pulse">
+                  <span className="text-lg animate-spin">🌀</span>
+                </div>
+                <h5 className="m-0 text-blue-200 text-[11px] sm:text-xs font-extrabold uppercase">Connecting to Player 1...</h5>
+                <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] mt-0.5">Establishing direct WebRTC video line.</p>
+              </div>
             )}
 
             <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.75)', padding: '2px 6px', fontSize: '9px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
@@ -1011,59 +1049,53 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 ⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}
               </div>
             </div>
-            {myRole === 'PLAYER_2' ? (
-              <video id="p2LocalDuelView" ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <>
-                <video id="p2RemoteDuelView" ref={p2RemoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                {(!hasRemoteStream && !isDualTestMode) && (
-                  <div
-                    className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center"
-                    style={{ position: 'absolute', inset: 0, zIndex: 5 }}
-                  >
-                    {gameMode === 'PVAI' ? (
-                      <>
-                        <div className="w-12 h-12 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-1.5 animate-pulse">
-                          <span className="text-xl">🤖</span>
-                        </div>
-                        <h4 className="m-0 text-purple-200 text-[11px] sm:text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
-                        <div className="text-[9px] sm:text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
-                          {aiExpressionState}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-1.5 animate-pulse">
-                          <span className="text-xl animate-bounce">🔍</span>
-                        </div>
-                        <h4 className="m-0 text-amber-200 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider">
-                          {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
-                        </h4>
-                        <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] my-1 font-medium leading-tight">
-                          Waiting for another real player to accept your duel request.
-                        </p>
-                        <button
-                          onClick={() => {
-                            setIsDualTestMode(true);
-                            if (localVideoRef.current?.srcObject && p2RemoteVideoRef.current) {
-                              p2RemoteVideoRef.current.srcObject = secondaryMediaStreamRef.current || localVideoRef.current.srcObject;
-                              p2RemoteVideoRef.current.play().catch(() => {});
-                              setHasRemoteStream(true);
-                              setGameMode('PVP');
-                              setMatchStatus('LIVE');
-                              setCountdown(10);
-                              setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
-                            }
-                          }}
-                          className="mt-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[9px] sm:text-[10px] px-2 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
-                        >
-                          📹 Solo Mirror Preview
-                        </button>
-                      </>
-                    )}
-                  </div>
+            {/* Single video element bound to p2VideoRef — handleStreamMapping controls the source dynamically */}
+            <video id="p2DuelView" ref={p2VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_2'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            {(!hasRemoteStream && !isDualTestMode && myRole !== 'PLAYER_2') && (
+              <div
+                className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center"
+                style={{ position: 'absolute', inset: 0, zIndex: 5 }}
+              >
+                {gameMode === 'PVAI' ? (
+                  <>
+                    <div className="w-12 h-12 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-1.5 animate-pulse">
+                      <span className="text-xl">🤖</span>
+                    </div>
+                    <h4 className="m-0 text-purple-200 text-[11px] sm:text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
+                    <div className="text-[9px] sm:text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
+                      {aiExpressionState}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-1.5 animate-pulse">
+                      <span className="text-xl animate-bounce">🔍</span>
+                    </div>
+                    <h4 className="m-0 text-amber-200 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider">
+                      {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
+                    </h4>
+                    <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] my-1 font-medium leading-tight">
+                      Waiting for another real player to accept your duel request.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const localStream = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+                        if (localStream) {
+                          setIsDualTestMode(true);
+                          setHasRemoteStream(true);
+                          setGameMode('PVP');
+                          setMatchStatus('LIVE');
+                          setCountdown(10);
+                          setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
+                        }
+                      }}
+                      className="mt-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[9px] sm:text-[10px] px-2 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
+                    >
+                      📹 Solo Mirror Preview
+                    </button>
+                  </>
                 )}
-              </>
+              </div>
             )}
 
             <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.75)', padding: '2px 6px', fontSize: '9px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
