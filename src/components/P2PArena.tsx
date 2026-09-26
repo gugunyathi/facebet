@@ -731,10 +731,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             `💬 ${data.botMeta.name}: "${data.botMeta.taunt}"`
           ]);
         } else {
-          setChatLog(["🤝 MATCH FOUND: Securing P2P WebRTC direct camera line..."]);
-          if (data.opponentPeerId) {
-            initiateP2PConnectionCall(data.opponentPeerId);
-          }
+          setChatLog(["🤝 MATCH FOUND: Waiting for peer-to-peer WebRTC connection..."]);
         }
       } else {
         setMatchStatus("WAITING");

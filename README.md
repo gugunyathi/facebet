@@ -6,10 +6,13 @@
 
 ## ⚡ Key Features & Recent Updates
 
-### ⚔️ Real-Time P2P Camera Duels & Human Matching
-- **Default P2P Arena Mode**: Default mode prioritizes real human-vs-human camera matches.
-- **WebSocket Challenge Broadcasting**: When a user enters the P2P duel queue, `HUMAN_DUEL_REQUEST` WebSocket notifications are instantly broadcasted across all connected clients.
-- **Real Player Challenge Notification Banner**: Users in P2PAI (Boss) Arena receive an in-app banner alert whenever a live human challenger enters the queue, with a one-click **"⚡ Switch to P2P Arena & Accept Duel"** action button.
+### ⚔️ Real-Time P2P Camera Duels & Dynamic Rotational Queue
+- **King-of-the-Hill Matchmaking**: Continuous rotational queue where players transition seamlessly between Spectator, Challenger (Player 2), and King (Player 1) roles.
+- **WebRTC PeerJS Mesh Network**: 
+  - Centralized Render WebSocket backend strictly manages JSON state and queue positions.
+  - Active players (King & Challenger) automatically broker direct 1-to-1 WebRTC connections.
+  - **Live Spectator Mesh**: Active players autonomously broadcast their video feeds point-to-point to all queued spectators for true zero-latency audience viewing.
+- **Role-Gated Hardware Efficiency**: Hardware cameras (`getUserMedia`) are strictly engaged only when a user is actively battling, eliminating browser stream limits and preserving spectator bandwidth.
 - **Edge-to-Edge Gapless Video Frames**: Camera views touch directly edge-to-edge separated only by blue (P1) and pink (P2) player borders.
 - **Mobile Viewport Controls**:
   - **`📱 Stack / ↔️ Side-by-Side`**: Instant toggle between vertical video stack and horizontal split-screen view.
@@ -31,7 +34,7 @@
   - Real-time video frame capture processed through **Google Gemini 2.0 Flash AI** to evaluate facial expressions against live target trends.
   - High-performance canvas downscaling (320x240 @ 0.55 JPEG) reducing network bandwidth usage by **>90%**.
 - **P2P Arena (Person vs Person Video Duel)**:
-  - Low-latency WebRTC video duel matching via PeerJS.
+  - Low-latency WebRTC video duel matching via PeerJS with dynamic spectator mesh broadcasting.
   - Built-in multi-region STUN/ICE relay servers (`Google`, `Twilio`) for seamless connectivity behind strict firewalls and mobile NATs.
 
 ### 📜 Smart Contracts & On-Chain Escrow
@@ -46,7 +49,7 @@
 - **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Lucide & React Icons. (Deployed on Vercel)
 - **Web3 & SDKs**: `@base-org/account`, `@base-org/account-ui`, `viem`, `ethers`, Hardhat.
 - **AI Engine**: `@google/genai` (Gemini Multimodal Live Frame Analysis).
-- **WebRTC & Real-Time**: PeerJS, WebSockets, Canvas Stream Capture API (Optimized single-stream re-use).
+- **WebRTC & Real-Time**: PeerJS, WebSockets, Canvas Stream Capture API.
 - **Backend Server**: Node.js, Express, TypeScript, Mongoose / In-Memory Session Engine. (Deployed on Render)
 - **Smart Contracts**: Solidity `^0.8.20` (`LotteryLiveEscrow.sol`, `LotteryEscrow.sol`).
 
@@ -87,20 +90,26 @@ Navigate to `http://localhost:3000` to launch the app.
 
 ## 🔌 API Reference & Endpoints
 
-| Method | Endpoint | Description |
+| Method | Endpoint / Event | Description |
 | :--- | :--- | :--- |
+| **REST APIs** | | |
 | `GET` | `/api/auth/nonce` | Generate cryptographic SIWE authentication nonce |
 | `POST` | `/api/auth/verify` | Verify wallet signature & authenticate user session |
 | `POST` | `/api/buy-tickets` | Process Base USDC ticket purchases ($1.00 = 10 Tickets) |
 | `POST` | `/api/subscriptions/verify` | Process Base recurring VIP subscriptions ($5.00/mo = 50 Tickets) |
 | `GET` | `/api/onchain-pot` | Query live Base escrow smart contract jackpot balance |
-| `POST` | `/api/duel/matchmake` | Prioritizes human vs human P2P matchmaking & challenge broadcast |
+| `POST` | `/api/duel/matchmake` | Enters a user into the live King-of-the-Hill match queue |
 | `GET` | `/api/duel/active-challenges` | Query active waiting human duel rooms |
 | `POST` | `/api/evaluate-duel` | Dual camera frame Gemini AI evaluation for P2P duels |
 | `POST` | `/api/evaluate-frame` | Submit player camera frame for Gemini AI expression scoring |
 | `POST` | `/api/queue/deduct-ticket` | Deduct entry ticket after each auto re-queue |
 | `GET` | `/api/active-trend` | Get active global facial expression target trend |
 | `GET` | `/api/timeline` | Fetch live winner timeline feed |
+| **WebSocket Events** | | *(Sent via `wss://` Render server connection)* |
+| `SEND` | `JOIN_ARENA_QUEUE` | Register peer ID and wallet to join the active match lineup |
+| `SEND` | `LEAVE_ARENA_QUEUE` | Withdraw from the lineup and revert to spectator status |
+| `RECEIVE`| `ARENA_STATE_UPDATE` | Global broadcast of current King, Challenger, and Queue roster |
+| `RECEIVE`| `P2P_MATCH_FOUND` | Legacy matchmaking trigger event (Superseded by Arena State) |
 
 ---
 
