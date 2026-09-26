@@ -126,6 +126,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
   const secondaryMediaStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const activeCallRef = useRef<any>(null); // Tracks current PeerJS call to prevent duplicates
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Dynamic rotational stream mapping helper: maps streams based on myRole and current match state
@@ -316,14 +317,14 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             const { player1PeerId, player2PeerId } = data;
             if (activeUserId === player1PeerId && player2PeerId) {
               setMyRole('PLAYER_1');
-              setChatLog(prev => [...prev, "🔵 Player 1 Seat Claimed! Securing direct video line..."]);
               setGameMode('PVP');
-              initiateP2PConnectionCall(player2PeerId);
+              setChatLog(prev => [...prev, "🔵 Player 1 Seat Claimed! Waiting for challenger to arrive..."]);
+              // King auto-dials challenger via arenaState.challenger useEffect
             } else if (activeUserId === player2PeerId && player1PeerId) {
               setMyRole('PLAYER_2');
-              setChatLog(prev => [...prev, "🔴 Player 2 Seat Claimed! Securing direct video line..."]);
               setGameMode('PVP');
-              initiateP2PConnectionCall(player1PeerId);
+              setChatLog(prev => [...prev, "🔴 Player 2 Seat Claimed! Listening for king's call..."]);
+              // Challenger answers via the inbound call handler useEffect
             }
           }
         } catch {}
@@ -394,84 +395,140 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     setChatLog(prev => [...prev, "🚪 Left the Arena Queue."]);
   };
 
-  // Dynamic stream resolution for selected P1 and P2 camera devices
+  // ─── ROLE-GATED CAMERA ACQUISITION ───────────────────────────────────────────
+  // Camera is only started when the user is actively playing (PLAYER_1 or PLAYER_2).
+  // Spectators and queued users never acquire a MediaStream.
   useEffect(() => {
     let isSubscribed = true;
+    const isActivePlayer = myRole === 'PLAYER_1' || myRole === 'PLAYER_2';
 
-    const setupCameraStreams = async () => {
-      // 1. Setup P1 camera stream
-      try {
-        let stream1: MediaStream | null = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-        if (!stream1 && p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+    if (!isActivePlayer) {
+      // Not playing — stop any existing tracks and release camera
+      if (activeMediaStreamRef.current) {
+        activeMediaStreamRef.current.getTracks().forEach(t => t.stop());
+        activeMediaStreamRef.current = null;
+      }
+      handleStreamMapping();
+      return;
+    }
+
+    // Already have a stream — just re-map
+    if (activeMediaStreamRef.current) {
+      handleStreamMapping();
+      return;
+    }
+
+    const acquireCamera = async () => {
+      // 1. Try videoContext (shared global stream from parent provider)
+      let stream: MediaStream | null =
+        videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+
+      // 2. Try specific device ID
+      if (!stream && p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: p1DeviceId } },
+            audio: true
+          });
+        } catch {
           try {
-            stream1 = await navigator.mediaDevices.getUserMedia({
-              video: { deviceId: { exact: p1DeviceId } },
-              audio: false
-            });
-          } catch {
-            try {
-              stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-            } catch {}
-          }
-        }
-        
-        if (!stream1 && videoContext?.startVideoStream) {
-          try {
-            await videoContext.startVideoStream();
-            stream1 = videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
           } catch {}
         }
-
-        if (!stream1 && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-          try {
-            stream1 = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          } catch {}
-        }
-
-        if (isSubscribed && stream1) {
-          activeMediaStreamRef.current = stream1;
-          handleStreamMapping();
-        }
-      } catch (err) {
-        console.warn("P1 Camera stream setup note:", err);
       }
 
-      // 2. Setup separate P2 camera stream if a distinct second camera device is selected
-      if (p2DeviceId && p2DeviceId !== p1DeviceId && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      // 3. Final fallback
+      if (!stream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         try {
-          const stream2 = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: p2DeviceId } },
-            audio: false
-          });
-          if (isSubscribed && stream2) {
-            secondaryMediaStreamRef.current = stream2;
-            handleStreamMapping();
-          }
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         } catch (err) {
-          console.warn("P2 Secondary Camera stream setup note:", err);
+          console.warn("Camera acquisition failed:", err);
         }
+      }
+
+      if (isSubscribed && stream) {
+        activeMediaStreamRef.current = stream;
+        handleStreamMapping();
       }
     };
 
-    setupCameraStreams();
+    acquireCamera();
 
     return () => {
       isSubscribed = false;
     };
-  }, [p1DeviceId, p2DeviceId, videoContext, handleStreamMapping]);
+  }, [myRole, p1DeviceId, videoContext, handleStreamMapping]);
 
-  // PeerJS Incoming Call Media Event Listener Loop
+  // ─── KING AUTO-INITIATES P2P CALL WHEN CHALLENGER ARRIVES ────────────────────
+  // Fires whenever arenaState updates. If I am the king and a challenger is now
+  // present, I open the WebRTC call. activeCallRef prevents duplicate calls.
+  useEffect(() => {
+    if (!activePeer || !arenaState.challenger || myRole !== 'PLAYER_1') return;
+
+    const challengerPeerId = arenaState.challenger.peerId;
+    // Avoid re-calling if already connected to this same challenger
+    if (activeCallRef.current?.peer === challengerPeerId) return;
+
+    const dialChallenger = async () => {
+      let localStream = activeMediaStreamRef.current;
+      if (!localStream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          activeMediaStreamRef.current = localStream;
+        } catch {}
+      }
+      if (!localStream) return;
+
+      // Close any stale call
+      if (activeCallRef.current) {
+        try { activeCallRef.current.close(); } catch {}
+      }
+
+      console.log(`📞 King dialing challenger (${challengerPeerId})...`);
+      const call = activePeer.call(challengerPeerId, localStream);
+      activeCallRef.current = call;
+
+      call.on('stream', (remoteStream: MediaStream) => {
+        console.log("🎥 Challenger stream received!");
+        remoteStreamRef.current = remoteStream;
+        setHasRemoteStream(true);
+        setGameMode('PVP');
+        setWinnerId(null);
+        setVerdictReason("");
+        setMatchStatus("LIVE");
+        setCountdown(10);
+        setChatLog(prev => [...prev, `⚔️ Match LIVE vs Challenger (${challengerPeerId.slice(0, 8)}...)` ]);
+        handleStreamMapping();
+      });
+
+      call.on('close', () => { activeCallRef.current = null; });
+      call.on('error', () => { activeCallRef.current = null; });
+    };
+
+    dialChallenger();
+  }, [arenaState.challenger, myRole, activePeer, handleStreamMapping]);
+
+  // ─── CHALLENGER LISTENS FOR INBOUND CALL FROM KING ───────────────────────────
+  // Validates that the incoming caller's peerId matches the king in arenaState
+  // before answering — prevents rogue connections.
   useEffect(() => {
     if (!activePeer) return;
 
     const handleIncomingCall = (incomingCall: any) => {
-      console.log("📞 Incoming WebRTC video call received...");
+      // Only answer if we are the challenger and the caller is the current king
+      const expectedKingPeerId = arenaState.king?.peerId;
+      const amIChallenger = myRole === 'PLAYER_2';
 
-      const getStreamAndAnswer = async () => {
+      if (!amIChallenger || !expectedKingPeerId || incomingCall.peer !== expectedKingPeerId) {
+        console.warn(`📞 Rejected unexpected call from ${incomingCall.peer} (expected king: ${expectedKingPeerId})`);
+        return;
+      }
+
+      const answerCall = async () => {
         let localStream = activeMediaStreamRef.current;
         if (!localStream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
           try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             activeMediaStreamRef.current = localStream;
           } catch {}
         }
@@ -481,9 +538,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         } else {
           incomingCall.answer();
         }
+        activeCallRef.current = incomingCall;
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
-          console.log("🎥 Remote P2P video stream received & bound!");
+          console.log("🎥 King stream received by Challenger!");
           remoteStreamRef.current = remoteStream;
           setHasRemoteStream(true);
           setGameMode('PVP');
@@ -494,54 +552,21 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
           setChatLog(prev => [...prev, "🤝 WebRTC P2P Direct Video Line Established! Match LIVE."]);
           handleStreamMapping();
         });
+
+        incomingCall.on('close', () => { activeCallRef.current = null; });
+        incomingCall.on('error', () => { activeCallRef.current = null; });
       };
 
-      getStreamAndAnswer();
+      answerCall();
     };
 
     activePeer.on('call', handleIncomingCall);
-
     return () => {
       activePeer.off?.('call', handleIncomingCall);
     };
-  }, [activePeer, handleStreamMapping]);
+  }, [activePeer, arenaState.king, myRole, handleStreamMapping]);
 
-  // Outgoing P2P Connection Initiator
-  const initiateP2PConnectionCall = (targetOpponentPeerId: string) => {
-    if (!activePeer) return;
 
-    const getStreamAndCall = async () => {
-      let localStream = activeMediaStreamRef.current;
-      if (!localStream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        try {
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          activeMediaStreamRef.current = localStream;
-        } catch {}
-      }
-
-      if (!localStream) return;
-
-      console.log(`📞 Dialing opponent node (${targetOpponentPeerId})...`);
-      const call = activePeer.call(targetOpponentPeerId, localStream);
-
-      call.on('stream', (remoteStream: MediaStream) => {
-        console.log("🎥 Remote opponent video stream attached!");
-        remoteStreamRef.current = remoteStream;
-        setHasRemoteStream(true);
-        setGameMode('PVP');
-        setWinnerId(null);
-        setVerdictReason("");
-        setMatchStatus("LIVE");
-        setCountdown(10);
-        setChatLog(prev => [...prev, `⚔️ Match Initiated vs Opponent Node (${targetOpponentPeerId.slice(0, 8)}...)`]);
-        handleStreamMapping();
-      });
-    };
-
-    getStreamAndCall();
-  };
-
-  // Matchmaking pipeline trigger
   const triggerMatchmakePipeline = async () => {
     if (!userSession && onRequireAuth) {
       onRequireAuth();
