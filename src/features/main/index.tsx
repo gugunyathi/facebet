@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 import { pay } from "@base-org/account";
 import { P2PArena } from "@/components/P2PArena";
 import { VideoProvider, API_URL } from "@/utils/constants";
@@ -14,6 +15,13 @@ interface MainProps {
   onBuyTicketsSuccess: (tickets: number) => void;
   autoBattle: boolean;
   setAutoBattle: React.Dispatch<React.SetStateAction<boolean>>;
+  videoDevices?: MediaDeviceInfo[];
+  p1DeviceId?: string;
+  setP1DeviceId?: (id: string) => void;
+  p2DeviceId?: string;
+  setP2DeviceId?: (id: string) => void;
+  isDualTestMode?: boolean;
+  setIsDualTestMode?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const Main: React.FC<MainProps> = ({
@@ -23,8 +31,16 @@ const Main: React.FC<MainProps> = ({
   onBuyTicketsSuccess,
   autoBattle,
   setAutoBattle,
+  videoDevices,
+  p1DeviceId,
+  setP1DeviceId,
+  p2DeviceId,
+  setP2DeviceId,
+  isDualTestMode,
+  setIsDualTestMode,
 }) => {
   const values = usePeer();
+  const onlineUsersCount = useSelector((state: any) => state.main?.onlineUsersCount || 1);
   // By default match human users in P2P arena
   const [arenaMode, setArenaMode] = useState<"boss" | "p2p">("p2p");
   const [isPaying, setIsPaying] = useState(false);
@@ -136,8 +152,13 @@ const Main: React.FC<MainProps> = ({
             </button>
           </div>
 
-          {/* Quick Base USDC Ticket Purchase Button */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Online Status Badge & Quick Base USDC Ticket Purchase Button */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-300 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-emerald-500/40 normal-case font-extrabold shrink-0 flex items-center gap-1 shadow">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>{onlineUsersCount} Online</span>
+            </span>
+
             {payMessage && (
               <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 animate-pulse">
                 {payMessage}
@@ -186,6 +207,9 @@ const Main: React.FC<MainProps> = ({
                 onBuyTickets={handleBasePay}
                 autoBattle={autoBattle}
                 setAutoBattle={setAutoBattle}
+                videoDevices={videoDevices}
+                selectedCamId={p1DeviceId}
+                setSelectedCamId={setP1DeviceId}
               />
             </div>
           ) : (
@@ -196,6 +220,13 @@ const Main: React.FC<MainProps> = ({
                 onBuyTickets={handleBasePay}
                 autoBattle={autoBattle}
                 setAutoBattle={setAutoBattle}
+                videoDevices={videoDevices}
+                p1DeviceId={p1DeviceId}
+                setP1DeviceId={setP1DeviceId}
+                p2DeviceId={p2DeviceId}
+                setP2DeviceId={setP2DeviceId}
+                isDualTestMode={isDualTestMode}
+                setIsDualTestMode={setIsDualTestMode}
               />
             </div>
           )}

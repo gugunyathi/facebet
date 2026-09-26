@@ -23,6 +23,13 @@ interface BurgerMenuProps {
   onOpenArcAppKit?: () => void;
   autoBattle?: boolean;
   setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
+  videoDevices?: MediaDeviceInfo[];
+  p1DeviceId?: string;
+  setP1DeviceId?: (id: string) => void;
+  p2DeviceId?: string;
+  setP2DeviceId?: (id: string) => void;
+  isDualTestMode?: boolean;
+  onToggleSoloMirror?: () => void;
 }
 
 export const BurgerMenu: React.FC<BurgerMenuProps> = ({
@@ -34,6 +41,13 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
   onOpenArcAppKit,
   autoBattle,
   setAutoBattle,
+  videoDevices = [],
+  p1DeviceId = '',
+  setP1DeviceId,
+  p2DeviceId = '',
+  setP2DeviceId,
+  isDualTestMode = false,
+  onToggleSoloMirror,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -189,6 +203,69 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             >
               {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
             </button>
+          </div>
+
+          {/* Camera Device & Solo Mirror Controls */}
+          <div className="flex flex-col bg-purple-950/60 border border-purple-500/40 p-2.5 rounded-xl gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-xs font-extrabold text-purple-200 flex items-center gap-1.5">
+                <MdVideocam className="w-4 h-4 text-purple-300 shrink-0" />
+                <span>Camera & Mirror</span>
+              </span>
+              {onToggleSoloMirror && (
+                <button
+                  onClick={onToggleSoloMirror}
+                  className={`text-[10px] px-2 py-0.5 rounded-lg font-black border transition cursor-pointer shrink-0 ${
+                    isDualTestMode
+                      ? "bg-blue-600 text-white border-blue-400 shadow-md"
+                      : "bg-white/10 hover:bg-white/20 text-gray-200 border-white/20"
+                  }`}
+                  title="Toggle solo mirror test mode"
+                >
+                  {isDualTestMode ? "📹 Mirror ON" : "📹 Solo Mirror"}
+                </button>
+              )}
+            </div>
+
+            {videoDevices && videoDevices.length > 0 ? (
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-gray-300 text-[11px] font-semibold">Camera 1:</span>
+                  <select
+                    value={p1DeviceId || ''}
+                    onChange={(e) => setP1DeviceId?.(e.target.value)}
+                    className="bg-[#110c38] text-gray-200 text-[11px] rounded px-2 py-1 border border-purple-500/40 outline-none focus:border-purple-400 max-w-[150px] truncate cursor-pointer font-medium"
+                  >
+                    {videoDevices.map((dev, i) => (
+                      <option key={dev.deviceId || i} value={dev.deviceId}>
+                        {dev.label ? dev.label.slice(0, 18) : `Camera ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {videoDevices.length > 1 && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-gray-300 text-[11px] font-semibold">Camera 2:</span>
+                    <select
+                      value={p2DeviceId || ''}
+                      onChange={(e) => setP2DeviceId?.(e.target.value)}
+                      className="bg-[#110c38] text-gray-200 text-[11px] rounded px-2 py-1 border border-rose-500/40 outline-none focus:border-rose-400 max-w-[150px] truncate cursor-pointer font-medium"
+                    >
+                      {videoDevices.map((dev, i) => (
+                        <option key={dev.deviceId || i} value={dev.deviceId}>
+                          {dev.label ? dev.label.slice(0, 18) : `Camera ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-400 italic">
+                Detecting connected camera hardware...
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

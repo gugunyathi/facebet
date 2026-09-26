@@ -49,6 +49,39 @@ export function App() {
 
   const [autoBattle, setAutoBattle] = useState<boolean>(true);
 
+  // Global Camera Hardware & Solo Mirror state
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [p1DeviceId, setP1DeviceId] = useState<string>('');
+  const [p2DeviceId, setP2DeviceId] = useState<string>('');
+  const [isDualTestMode, setIsDualTestMode] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    const detectCameras = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter(d => d.kind === 'videoinput');
+          if (isSubscribed) {
+            setVideoDevices(videoInputs);
+            if (videoInputs.length > 0) {
+              if (!p1DeviceId) setP1DeviceId(videoInputs[0].deviceId);
+              if (!p2DeviceId) setP2DeviceId(videoInputs[1]?.deviceId || videoInputs[0].deviceId);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Could not list video input devices:", e);
+      }
+    };
+    detectCameras();
+    return () => { isSubscribed = false; };
+  }, []);
+
+  const handleToggleSoloMirror = () => {
+    setIsDualTestMode(prev => !prev);
+  };
+
   const handleAuthSuccess = (session: UserSessionData) => {
     setUserSession(session);
     try {
@@ -105,6 +138,13 @@ export function App() {
               onOpenArcAppKit={() => setIsArcAppKitOpen(true)}
               autoBattle={autoBattle}
               setAutoBattle={setAutoBattle}
+              videoDevices={videoDevices}
+              p1DeviceId={p1DeviceId}
+              setP1DeviceId={setP1DeviceId}
+              p2DeviceId={p2DeviceId}
+              setP2DeviceId={setP2DeviceId}
+              isDualTestMode={isDualTestMode}
+              onToggleSoloMirror={handleToggleSoloMirror}
             />
 
             <div className="flex items-center space-x-1 sm:space-x-2 cursor-pointer shrink-0" onClick={() => setActivePage("arena")}>
@@ -197,9 +237,6 @@ export function App() {
           </div>
         </header>
 
-        {/* Global Trend Ticker Widget */}
-        <TrendTicker />
-
         {/* Main Content Area */}
         <div className="flex-1 relative overflow-hidden flex flex-col">
           {activePage === "arena" && (
@@ -210,6 +247,13 @@ export function App() {
               onBuyTicketsSuccess={handleBuyTickets}
               autoBattle={autoBattle}
               setAutoBattle={setAutoBattle}
+              videoDevices={videoDevices}
+              p1DeviceId={p1DeviceId}
+              setP1DeviceId={setP1DeviceId}
+              p2DeviceId={p2DeviceId}
+              setP2DeviceId={setP2DeviceId}
+              isDualTestMode={isDualTestMode}
+              setIsDualTestMode={setIsDualTestMode}
             />
           )}
 

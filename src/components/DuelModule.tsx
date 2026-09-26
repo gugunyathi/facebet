@@ -11,6 +11,9 @@ interface DuelModuleProps {
   onBuyTickets?: () => void;
   autoBattle?: boolean;
   setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
+  videoDevices?: MediaDeviceInfo[];
+  selectedCamId?: string;
+  setSelectedCamId?: (id: string) => void;
 }
 
 export const DuelModule: React.FC<DuelModuleProps> = ({
@@ -37,26 +40,38 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
 
   // Target Words Overlay State
+  const [rolloverPotUSD, setRolloverPotUSD] = useState<string>("2,446.95");
   const [targetWords, setTargetWords] = useState<string[]>(["WIDE-EYED SHOCK", "UNHINGED JAW", "NEON GAZE", "CYBER SMILE"]);
   const [targetWordIndex, setTargetWordIndex] = useState<number>(0);
 
   useEffect(() => {
-    const fetchActiveTrend = async () => {
+    let isSubscribed = true;
+    const fetchActiveTrendAndPot = async () => {
       try {
         const res = await fetch(`${API_URL}/api/active-trend`);
         const data = await res.json();
-        if (data?.currentTrend) {
+        if (data?.currentTrend && isSubscribed) {
           const keywords = parseExpressionKeywords(data.currentTrend);
           if (keywords.length > 0) {
             setTargetWords(keywords);
           }
         }
       } catch (e) {}
+
+      try {
+        const statsRes = await fetch(`${API_URL}/api/game-stats`);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          if (statsData?.potUSD && isSubscribed) {
+            setRolloverPotUSD(statsData.potUSD);
+          }
+        }
+      } catch {}
     };
 
-    fetchActiveTrend();
-    const interval = setInterval(fetchActiveTrend, 30000);
-    return () => clearInterval(interval);
+    fetchActiveTrendAndPot();
+    const interval = setInterval(fetchActiveTrendAndPot, 12000);
+    return () => { isSubscribed = false; clearInterval(interval); };
   }, []);
 
   useEffect(() => {
@@ -319,48 +334,9 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
     >
 
 
-      <div className="flex items-center justify-between gap-1 sm:gap-2 mb-3 pb-2 border-b border-white/10 w-full overflow-x-auto whitespace-nowrap">
-        <h3 className="text-[11px] sm:text-sm font-extrabold tracking-wide uppercase flex items-center gap-1 text-purple-200 m-0 shrink-0">
-          <span>🔮</span>
-          <span>P2AI ARENA</span>
-        </h3>
-
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Camera Selection Dropdown */}
-          {videoDevices.length > 0 && (
-            <div className="flex items-center gap-1 text-[10px] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10 shrink-0">
-              <span className="text-purple-300 font-bold hidden sm:inline">📷 Cam:</span>
-              <select
-                value={selectedCamId}
-                onChange={(e) => setSelectedCamId(e.target.value)}
-                className="bg-black text-gray-200 text-[9px] sm:text-[10px] rounded px-1 py-0.5 border border-purple-500/30 focus:outline-none"
-              >
-                {videoDevices.map((dev, i) => (
-                  <option key={dev.deviceId || i} value={dev.deviceId}>
-                    {dev.label ? dev.label.slice(0, 16) : `Camera ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Layout Orientation Switcher (Vertical Stack vs Horizontal Side-by-Side) */}
-          <button
-            onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-            className="bg-white/10 hover:bg-white/20 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-white/20 font-bold transition flex items-center gap-0.5 text-gray-200 cursor-pointer shrink-0"
-            title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
-          >
-            <span>{layoutMode === 'horizontal' ? '📱 Stack' : '↔️ Side'}</span>
-          </button>
-
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={toggleFullscreen}
-            className="bg-indigo-600/80 hover:bg-indigo-500 text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-indigo-400/40 font-extrabold transition flex items-center gap-0.5 text-white cursor-pointer shadow shrink-0"
-          >
-            <span>{isFullscreen ? '↙↗ Exit' : '⤢ Fullscreen'}</span>
-          </button>
-
+      {/* Active Match Status Badge (Hidden when INACTIVE) */}
+      {matchStatus !== 'INACTIVE' && (
+        <div className="flex items-center justify-end gap-1.5 mb-2 w-full">
           <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase shrink-0 ${
             matchStatus === 'LIVE' ? 'bg-emerald-500 text-black animate-pulse' :
             matchStatus === 'JUDGING_BY_AI' ? 'bg-amber-400 text-black animate-bounce' :
@@ -369,27 +345,72 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
             {matchStatus}
           </span>
         </div>
-      </div>
+      )}
 
       {/* Dual Arena Viewport with Wallet Display Headers */}
       <div className={`grid gap-2 min-h-[220px] mb-3 w-full ${
         layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'
       }`}>
         {/* Left Column: Player Local Camera Stream */}
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between bg-blue-950/90 border border-blue-500/60 px-3 py-1.5 rounded-t-xl text-xs font-mono font-bold text-blue-200">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-base">👑</span>
-              <span className="text-white font-extrabold truncate">YOU (PLAYER 1)</span>
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center justify-between bg-blue-950/90 border border-blue-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-t-xl text-[11px] sm:text-xs font-mono font-bold text-blue-200 gap-1 min-w-0">
+            <div className="flex items-center gap-1.5 truncate min-w-0">
+              <span className="text-base shrink-0">👑</span>
+              <span className="text-white font-extrabold truncate text-[11px] sm:text-xs">YOU (PLAYER 1)</span>
             </div>
-            <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded border border-blue-400/30 text-[10px] sm:text-[11px] font-mono shrink-0 ml-2">
-              💳 {activeWallet ? `${activeWallet.substring(0, 6)}...${activeWallet.slice(-4)}` : "0x71C7...976F"}
+
+            {/* Jackpot Rollover Pot Display */}
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0">
+              <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
+              <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+            </div>
+
+            <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded border border-blue-400/30 text-[9px] sm:text-[11px] font-mono shrink-0 ml-1">
+              {activeWallet ? `${activeWallet.substring(0, 6)}...${activeWallet.slice(-4)}` : "0x71C7...976F"}
             </div>
           </div>
 
           <div style={{
             borderRadius: '0 0 12px 12px'
           }} className="bg-black overflow-hidden border-2 border-blue-600 border-t-0 relative min-h-[160px] flex items-center justify-center flex-1 shadow-[0_0_15px_rgba(37,99,235,0.3)]">
+            {/* Floating Stack & Fullscreen Icon-Only Buttons vertically aligned on top-right */}
+            <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5 pointer-events-auto">
+              <button
+                onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                className="w-8 h-8 rounded-lg bg-black/80 hover:bg-black/95 border border-white/30 hover:border-white/60 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
+                title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+                aria-label="Toggle Layout Orientation"
+              >
+                {layoutMode === 'horizontal' ? (
+                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="3" y="4" width="18" height="7" rx="1.5" />
+                    <rect x="3" y="13" width="18" height="7" rx="1.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="4" y="3" width="7" height="18" rx="1.5" />
+                    <rect x="13" y="3" width="7" height="18" rx="1.5" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="w-8 h-8 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 border border-indigo-400/50 hover:border-indigo-300 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                aria-label="Toggle Fullscreen"
+              >
+                {isFullscreen ? (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15m-11.25 5.25h4.5m-4.5 0v-4.5m0 4.5L9 15" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
             {/* Single Flashing Target Word Floating Overlay on Player 1 Camera */}
             <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
               <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">
@@ -406,20 +427,64 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
         </div>
 
         {/* Right Column: AI Hologram / Opponent Viewport */}
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between bg-purple-950/90 border border-purple-500/60 px-3 py-1.5 rounded-t-xl text-xs font-mono font-bold text-purple-200">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-base">🤖</span>
-              <span className="text-white font-extrabold truncate">{botData?.name || "AI HOLOGRAM BOSS"}</span>
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center justify-between bg-purple-950/90 border border-purple-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-t-xl text-[11px] sm:text-xs font-mono font-bold text-purple-200 gap-1 min-w-0">
+            <div className="flex items-center gap-1.5 truncate min-w-0">
+              <span className="text-base shrink-0">🤖</span>
+              <span className="text-white font-extrabold truncate text-[11px] sm:text-xs">{botData?.name || "AI HOLOGRAM BOSS"}</span>
             </div>
-            <div className="text-purple-300 bg-black/80 px-2 py-0.5 rounded border border-purple-400/30 text-[10px] sm:text-[11px] font-mono shrink-0 ml-2">
-              💳 0x_AI_HOLOGRAM_AGENT_VAULT
+
+            {/* Jackpot Rollover Pot Display */}
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0">
+              <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
+              <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+            </div>
+
+            <div className="text-purple-300 bg-black/80 px-2 py-0.5 rounded border border-purple-400/30 text-[9px] sm:text-[11px] font-mono shrink-0 ml-1">
+              0x_AI_AGENT_VAULT
             </div>
           </div>
 
           <div style={{
             borderRadius: '0 0 12px 12px'
           }} className="overflow-hidden border-t-0 relative flex flex-col items-center justify-center min-h-[160px] flex-1 bg-[#07020d] border-2 border-purple-600 shadow-[inset_0_0_20px_rgba(138,43,226,0.5)]">
+            {/* Floating Stack & Fullscreen Icon-Only Buttons vertically aligned on top-right */}
+            <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5 pointer-events-auto">
+              <button
+                onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                className="w-8 h-8 rounded-lg bg-black/80 hover:bg-black/95 border border-white/30 hover:border-white/60 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
+                title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+                aria-label="Toggle Layout Orientation"
+              >
+                {layoutMode === 'horizontal' ? (
+                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="3" y="4" width="18" height="7" rx="1.5" />
+                    <rect x="3" y="13" width="18" height="7" rx="1.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="4" y="3" width="7" height="18" rx="1.5" />
+                    <rect x="13" y="3" width="7" height="18" rx="1.5" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="w-8 h-8 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 border border-indigo-400/50 hover:border-indigo-300 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                aria-label="Toggle Fullscreen"
+              >
+                {isFullscreen ? (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15m-11.25 5.25h4.5m-4.5 0v-4.5m0 4.5L9 15" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {/* Single Flashing Target Word Floating Overlay on Player 2 Camera */}
             <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
               <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">

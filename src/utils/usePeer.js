@@ -222,7 +222,6 @@ export default function usePeer() {
 
       if (onlineUsersCount !== undefined) {
         dispatch(setOnlineUsersCount(onlineUsersCount));
-        return;
       }
 
       if (event === "HUMAN_DUEL_REQUEST") {
