@@ -41,7 +41,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   onBuyTickets,
 }) => {
   const videoContext = useContext(VideoProvider);
-  const activePeer = peerInstance || videoContext?.peer || globalPeer;
+  const [activePeer, setActivePeer] = useState<any>(null);
+
+
 
   const [matchStatus, setMatchStatus] = useState<string>("INACTIVE");
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -238,6 +240,36 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const activeUserId = `${basePeerId}_${tabSessionId}`;
   const activeWallet = userSession?.walletAddress || walletAddress;
   const activeName = userSession?.userName || `Player_${tabSessionId}`;
+
+  // Initialize a dedicated Peer instance for this arena using our explicit activeUserId
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    import('peerjs').then(({ default: Peer }) => {
+      const peer = new Peer(activeUserId, {
+        host: import.meta.env.VITE_PEERJS_HOST || "0.peerjs.com",
+        port: import.meta.env.VITE_PEERJS_PORT ? parseInt(import.meta.env.VITE_PEERJS_PORT) : 443,
+        path: import.meta.env.VITE_PEERJS_PATH || "/",
+        secure: import.meta.env.VITE_PEERJS_SECURE !== "false",
+      });
+
+      peer.on('open', (id) => {
+        console.log(`✅ Dedicated Arena PeerJS initialized with explicit ID: ${id}`);
+        setActivePeer(peer);
+      });
+
+      peer.on('error', (err) => {
+        console.warn('Dedicated Arena PeerJS Error:', err);
+      });
+    });
+
+    return () => {
+      setActivePeer((currentPeer: any) => {
+        if (currentPeer) currentPeer.destroy();
+        return null;
+      });
+    };
+  }, [activeUserId]);
 
   const toggleFullscreen = () => {
     if (!isFullscreen) {
