@@ -126,7 +126,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const activeMediaStreamRef = useRef<MediaStream | null>(null);
   const secondaryMediaStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  // Spectator-specific stream refs: track king and challenger streams independently
+  const kingStreamRef = useRef<MediaStream | null>(null);
+  const challengerStreamRef = useRef<MediaStream | null>(null);
   const activeCallRef = useRef<any>(null); // Tracks current PeerJS call to prevent duplicates
+  // Map<peerId, PeerJS MediaConnection> for all outbound spectator broadcast calls
+  const spectatorCallsRef = useRef<Map<string, any>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Dynamic rotational stream mapping helper: maps streams based on myRole and current match state
@@ -181,14 +186,21 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         p1VideoRef.current.muted = false;
       }
     }
-    // SCENARIO C: You are a Spectator / Queued watching the match
+    // SCENARIO C: Spectator / Queued — receive king stream in p1, challenger stream in p2
     else {
-      if (p1VideoRef.current && remoteStream) {
-        if (p1VideoRef.current.srcObject !== remoteStream) {
-          p1VideoRef.current.srcObject = remoteStream;
+      if (p1VideoRef.current && kingStreamRef.current) {
+        if (p1VideoRef.current.srcObject !== kingStreamRef.current) {
+          p1VideoRef.current.srcObject = kingStreamRef.current;
           p1VideoRef.current.play().catch(() => {});
         }
         p1VideoRef.current.muted = false;
+      }
+      if (p2VideoRef.current && challengerStreamRef.current) {
+        if (p2VideoRef.current.srcObject !== challengerStreamRef.current) {
+          p2VideoRef.current.srcObject = challengerStreamRef.current;
+          p2VideoRef.current.play().catch(() => {});
+        }
+        p2VideoRef.current.muted = false;
       }
     }
   }, [myRole, videoContext?.remoteMediaStream, videoContext?.mediaStream, isDualTestMode, gameMode]);
@@ -508,63 +520,167 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     dialChallenger();
   }, [arenaState.challenger, myRole, activePeer, handleStreamMapping]);
 
-  // ─── CHALLENGER LISTENS FOR INBOUND CALL FROM KING ───────────────────────────
-  // Validates that the incoming caller's peerId matches the king in arenaState
-  // before answering — prevents rogue connections.
+  // ─── KING BROADCASTS TO SPECTATORS IN QUEUE ───────────────────────────────────
+  // When queue changes, King dials any new spectator not already in spectatorCallsRef.
+  // Closed/stale calls are cleaned up when the spectator leaves the queue.
+  useEffect(() => {
+    if (!activePeer || myRole !== 'PLAYER_1' || !arenaState.queue.length) return;
+
+    const localStream = activeMediaStreamRef.current;
+    if (!localStream) return;
+
+    const currentQueuePeerIds = new Set(arenaState.queue.map(s => s.peerId));
+
+    // Close calls to peers who left the queue
+    spectatorCallsRef.current.forEach((call, peerId) => {
+      if (!currentQueuePeerIds.has(peerId)) {
+        try { call.close(); } catch {}
+        spectatorCallsRef.current.delete(peerId);
+      }
+    });
+
+    // Dial any new spectators not yet called
+    arenaState.queue.forEach((spectator) => {
+      if (!spectator.peerId || spectatorCallsRef.current.has(spectator.peerId)) return;
+      if (spectator.peerId === activeUserId) return; // don't call ourselves
+
+      console.log(`📺 King broadcasting to spectator (${spectator.peerId.slice(0, 8)}...)`);
+      const call = activePeer.call(spectator.peerId, localStream);
+      spectatorCallsRef.current.set(spectator.peerId, call);
+      // King doesn't need the return stream from spectators
+      call.on('close', () => spectatorCallsRef.current.delete(spectator.peerId));
+      call.on('error', () => spectatorCallsRef.current.delete(spectator.peerId));
+    });
+  }, [arenaState.queue, myRole, activePeer, activeUserId]);
+
+  // ─── CHALLENGER BROADCASTS TO SPECTATORS IN QUEUE ─────────────────────────────
+  // Same as king — challenger also dials every queued spectator so they see both sides.
+  useEffect(() => {
+    if (!activePeer || myRole !== 'PLAYER_2' || !arenaState.queue.length) return;
+
+    const localStream = activeMediaStreamRef.current;
+    if (!localStream) return;
+
+    const currentQueuePeerIds = new Set(arenaState.queue.map(s => s.peerId));
+
+    // Close calls to peers who left the queue
+    spectatorCallsRef.current.forEach((call, peerId) => {
+      if (!currentQueuePeerIds.has(peerId)) {
+        try { call.close(); } catch {}
+        spectatorCallsRef.current.delete(peerId);
+      }
+    });
+
+    // Dial any new spectators not yet called
+    arenaState.queue.forEach((spectator) => {
+      if (!spectator.peerId || spectatorCallsRef.current.has(spectator.peerId)) return;
+      if (spectator.peerId === activeUserId) return; // don't call ourselves
+
+      console.log(`📺 Challenger broadcasting to spectator (${spectator.peerId.slice(0, 8)}...)`);
+      const call = activePeer.call(spectator.peerId, localStream);
+      spectatorCallsRef.current.set(spectator.peerId, call);
+      call.on('close', () => spectatorCallsRef.current.delete(spectator.peerId));
+      call.on('error', () => spectatorCallsRef.current.delete(spectator.peerId));
+    });
+  }, [arenaState.queue, myRole, activePeer, activeUserId]);
+
+  // ─── UNIFIED INBOUND CALL HANDLER (Challenger + Spectator) ───────────────────
+  // Routes incoming calls based on myRole:
+  //   PLAYER_2  — answers with localStream (king is calling me)
+  //   SPECTATOR/QUEUED — answers with no stream, routes received video to the
+  //                       correct slot based on whether the caller is king or challenger
   useEffect(() => {
     if (!activePeer) return;
 
     const handleIncomingCall = (incomingCall: any) => {
-      // Only answer if we are the challenger and the caller is the current king
-      const expectedKingPeerId = arenaState.king?.peerId;
+      const kingPeerId = arenaState.king?.peerId;
+      const challengerPeerId = arenaState.challenger?.peerId;
       const amIChallenger = myRole === 'PLAYER_2';
+      const amISpectator = myRole === 'QUEUED' || myRole === 'SPECTATOR';
 
-      if (!amIChallenger || !expectedKingPeerId || incomingCall.peer !== expectedKingPeerId) {
-        console.warn(`📞 Rejected unexpected call from ${incomingCall.peer} (expected king: ${expectedKingPeerId})`);
+      // ── CHALLENGER: answer the king with localStream ──
+      if (amIChallenger) {
+        if (!kingPeerId || incomingCall.peer !== kingPeerId) {
+          console.warn(`📞 Challenger rejected unexpected call from ${incomingCall.peer}`);
+          return;
+        }
+
+        const answerCall = async () => {
+          let localStream = activeMediaStreamRef.current;
+          if (!localStream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+            try {
+              localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+              activeMediaStreamRef.current = localStream;
+            } catch {}
+          }
+
+          if (localStream) {
+            incomingCall.answer(localStream);
+          } else {
+            incomingCall.answer();
+          }
+          activeCallRef.current = incomingCall;
+
+          incomingCall.on('stream', (remoteStream: MediaStream) => {
+            console.log("🎥 King stream received by Challenger!");
+            remoteStreamRef.current = remoteStream;
+            setHasRemoteStream(true);
+            setGameMode('PVP');
+            setWinnerId(null);
+            setVerdictReason("");
+            setMatchStatus("LIVE");
+            setCountdown(10);
+            setChatLog(prev => [...prev, "🤝 WebRTC P2P Direct Video Line Established! Match LIVE."]);
+            handleStreamMapping();
+          });
+
+          incomingCall.on('close', () => { activeCallRef.current = null; });
+          incomingCall.on('error', () => { activeCallRef.current = null; });
+        };
+
+        answerCall();
         return;
       }
 
-      const answerCall = async () => {
-        let localStream = activeMediaStreamRef.current;
-        if (!localStream && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-          try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            activeMediaStreamRef.current = localStream;
-          } catch {}
+      // ── SPECTATOR / QUEUED: answer with no stream, route incoming video by sender ──
+      if (amISpectator) {
+        // Only accept calls from current king or challenger
+        const isFromKing = kingPeerId && incomingCall.peer === kingPeerId;
+        const isFromChallenger = challengerPeerId && incomingCall.peer === challengerPeerId;
+
+        if (!isFromKing && !isFromChallenger) {
+          console.warn(`📞 Spectator rejected unexpected call from ${incomingCall.peer}`);
+          return;
         }
 
-        if (localStream) {
-          incomingCall.answer(localStream);
-        } else {
-          incomingCall.answer();
-        }
-        activeCallRef.current = incomingCall;
+        // Answer with no stream — spectators only watch, never send camera
+        incomingCall.answer();
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
-          console.log("🎥 King stream received by Challenger!");
-          remoteStreamRef.current = remoteStream;
+          if (isFromKing) {
+            console.log("📺 Spectator received King stream!");
+            kingStreamRef.current = remoteStream;
+          } else {
+            console.log("📺 Spectator received Challenger stream!");
+            challengerStreamRef.current = remoteStream;
+          }
           setHasRemoteStream(true);
-          setGameMode('PVP');
-          setWinnerId(null);
-          setVerdictReason("");
-          setMatchStatus("LIVE");
-          setCountdown(10);
-          setChatLog(prev => [...prev, "🤝 WebRTC P2P Direct Video Line Established! Match LIVE."]);
+          setMatchStatus('LIVE');
           handleStreamMapping();
         });
 
-        incomingCall.on('close', () => { activeCallRef.current = null; });
-        incomingCall.on('error', () => { activeCallRef.current = null; });
-      };
+        return;
+      }
 
-      answerCall();
+      // Fallback: ignore unexpected calls for any other role
+      console.warn(`📞 Ignoring call from ${incomingCall.peer} — role is ${myRole}`);
     };
 
     activePeer.on('call', handleIncomingCall);
     return () => {
       activePeer.off?.('call', handleIncomingCall);
     };
-  }, [activePeer, arenaState.king, myRole, handleStreamMapping]);
+  }, [activePeer, arenaState.king, arenaState.challenger, myRole, handleStreamMapping]);
 
 
   const triggerMatchmakePipeline = async () => {
