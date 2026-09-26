@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { MdClose, MdAccountBalanceWallet, MdStars } from "react-icons/md";
 import { WalletAuth, UserSessionData } from "./WalletAuth";
 
@@ -21,8 +22,8 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
       <div className="bg-[#110c38] border border-[#644af1]/50 rounded-2xl max-w-lg w-full p-6 relative shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         {/* Close Button */}
         <button
@@ -62,7 +63,8 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
           onBuyTicketsSuccess={onBuyTicketsSuccess}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MdClose,
   MdCreditCard,
@@ -88,8 +89,10 @@ export const ArcAppKitModal: React.FC<ArcAppKitModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4">
       <div className="bg-[#0b0826] border border-[#644af1]/60 rounded-2xl max-w-xl w-full p-4 sm:p-6 relative shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         
         {/* Modal Close Button */}
@@ -355,7 +358,8 @@ export const ArcAppKitModal: React.FC<ArcAppKitModalProps> = ({
           appUserId={userSession?.peerId}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

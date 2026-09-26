@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
@@ -87,6 +88,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2' | 'QUEUED' | 'SPECTATOR'>('SPECTATOR');
@@ -927,530 +930,629 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   }, [autoNextCountdown, autoBattle]);
 
   return (
-    <div
-      ref={containerRef}
-      className={isFullscreen ? "fixed inset-0 z-50 bg-[#0d1117] p-3 flex flex-col justify-between overflow-y-auto w-screen h-screen" : "w-full bg-[#0d1117] border border-[#30363d] rounded-xl p-3 sm:p-5 text-white"}
-    >
-
-      {/* Top Victory Announcement Banner */}
-      {matchStatus === "COMPLETE" && winnerId && (
-        <div style={{ padding: '12px', background: 'rgba(255, 140, 0, 0.15)', border: '1px solid #ff8c00', borderRadius: '8px', marginBottom: '12px', textAlign: 'center' }}>
-          <div className="font-extrabold text-amber-300 text-sm">
-            🏆 <strong>Player {winnerId} Wins!</strong> — {verdictReason}
-          </div>
-          {autoBattle && autoNextCountdown !== null && (
-            <div className="text-xs text-emerald-400 font-extrabold mt-1.5 flex items-center justify-center gap-1.5 animate-pulse">
-              <span>⚡ Next Battle Auto-Starting in {autoNextCountdown}s...</span>
-              <button
-                onClick={() => {
-                  setAutoNextCountdown(null);
-                  setAutoBattle?.(false);
-                }}
-                className="bg-red-950/80 hover:bg-red-900 text-red-300 text-[10px] px-2 py-0.5 rounded border border-red-500/40 cursor-pointer font-bold ml-2"
-              >
-                ⏸️ Pause Auto Loop
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-
-      {/* Active Match Countdown or Active Status Badge (Hidden when INACTIVE) */}
-      {(countdown !== null || (matchStatus !== 'INACTIVE' && matchStatus !== 'WAITING' && matchStatus !== 'QUEUEING')) && (
-        <div className="flex items-center justify-end gap-1.5 mb-2 w-full">
-          {countdown !== null && (
-            <span className="text-[9px] sm:text-[11px] font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 animate-pulse shrink-0">
-              ⏱️ {countdown}s
-            </span>
-          )}
-          {matchStatus !== 'INACTIVE' && (
-            <span className={`px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shrink-0 ${
-              matchStatus === 'LIVE' ? 'bg-emerald-500 text-black animate-pulse' :
-              matchStatus === 'AI_JUDGING' ? 'bg-amber-400 text-black animate-bounce' :
-              'bg-amber-500 text-black font-extrabold'
-            }`}>
-              {matchStatus}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Split-Screen Video Grid Container with Wallet Display Headers */}
-      <div
-        className={`grid gap-2 min-h-[260px] sm:min-h-[300px] mb-3 w-full ${
-          layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'
+    <div className="flex flex-row w-full h-full min-h-screen bg-neutral-950 gap-0 overflow-x-hidden select-none relative font-sans antialiased text-white">
+      
+      {/* 🌟 MAIN GAME ARENA WRAPPER FRAME */}
+      <div 
+        ref={containerRef}
+        className={`flex flex-col flex-1 h-full transition-all duration-500 ease-out relative p-3 sm:p-5 ${
+          isFullscreen 
+            ? "fixed inset-0 z-40 bg-neutral-950 p-3 sm:p-5 flex flex-col justify-between overflow-y-auto w-screen h-screen" 
+            : isSidebarOpen ? 'w-full md:w-3/4' : 'w-full'
         }`}
       >
-
-        {/* Left Column: Player 1 (Host / King) */}
-        <div className="flex flex-col min-w-0">
-          {/* Player 1 Wallet & Identity Header Badge */}
-          <div className="flex items-center justify-between bg-blue-950/90 border border-blue-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-t-xl text-[11px] sm:text-xs font-mono font-bold text-blue-200 gap-1 min-w-0">
-            <div className="flex items-center gap-1 sm:gap-1.5 truncate min-w-0">
-              <span className="text-sm sm:text-base shrink-0">👑</span>
-              <span className="text-white font-extrabold truncate text-[11px] sm:text-xs">{p1DisplayName}</span>
-              {(arenaState.king?.userId === activeUserId || myRole === 'PLAYER_1') && (
-                <span className="text-[8px] sm:text-[9px] bg-blue-500 text-white font-black px-1 sm:px-1.5 py-0.2 rounded shadow shrink-0">YOU</span>
-              )}
+        {/* Top Victory Announcement Banner */}
+        {matchStatus === "COMPLETE" && winnerId && (
+          <div className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-500/50 backdrop-blur-xl p-3.5 rounded-2xl mb-3 text-center shadow-[0_0_30px_rgba(245,158,11,0.3)] shrink-0">
+            <div className="font-black text-amber-300 text-sm sm:text-base tracking-wide">
+              🏆 PLAYER {winnerId} VICTORIOUS! — {verdictReason}
             </div>
-
-            {/* Jackpot Rollover Pot Display */}
-            <div className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0">
-              <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
-              <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
-            </div>
-
-            <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded border border-blue-400/30 text-[9px] sm:text-[11px] font-mono shrink-0 ml-1">
-              {p1WalletAddress ? `${p1WalletAddress.substring(0, 6)}...${p1WalletAddress.slice(-4)}` : "..."}
-            </div>
-          </div>
-
-          {/* Player 1 Camera Frame */}
-          <div style={{
-            background: '#000',
-            borderRadius: '0 0 8px 8px',
-            border: winnerId === 1 ? '4px solid #34a853' : '2px solid #0052ff',
-            borderTop: 'none',
-            position: 'relative',
-            overflow: 'hidden',
-            flex: 1,
-            minHeight: isFullscreen ? '42vh' : '200px',
-            boxShadow: winnerId === 1 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
-          }}>
-            {/* Floating Stack & Fullscreen Icon-Only Buttons vertically aligned on top-right */}
-            <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5 pointer-events-auto">
-              <button
-                onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-                className="w-8 h-8 rounded-lg bg-black/80 hover:bg-black/95 border border-white/30 hover:border-white/60 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
-                title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
-                aria-label="Toggle Layout Orientation"
-              >
-                {layoutMode === 'horizontal' ? (
-                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <rect x="3" y="4" width="18" height="7" rx="1.5" />
-                    <rect x="3" y="13" width="18" height="7" rx="1.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <rect x="4" y="3" width="7" height="18" rx="1.5" />
-                    <rect x="13" y="3" width="7" height="18" rx="1.5" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className="w-8 h-8 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 border border-indigo-400/50 hover:border-indigo-300 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                aria-label="Toggle Fullscreen"
-              >
-                {isFullscreen ? (
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15m-11.25 5.25h4.5m-4.5 0v-4.5m0 4.5L9 15" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {/* Single Flashing Target Word Floating Overlay on Player 1 Camera */}
-            <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
-              <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">
-                ⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}
+            {autoBattle && autoNextCountdown !== null && (
+              <div className="text-xs text-emerald-400 font-extrabold mt-2 flex items-center justify-center gap-2 animate-pulse">
+                <span>⚡ Next Battle Auto-Starting in {autoNextCountdown}s...</span>
+                <button
+                  onClick={() => {
+                    setAutoNextCountdown(null);
+                    setAutoBattle?.(false);
+                  }}
+                  className="bg-red-950/80 hover:bg-red-900 text-red-300 text-[10px] px-2.5 py-1 rounded-lg border border-red-500/40 cursor-pointer font-bold transition"
+                >
+                  ⏸️ Pause Auto Loop
+                </button>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
-            <video id="p1DuelView" ref={p1VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_1'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            {(myRole !== 'PLAYER_1' && !hasRemoteStream && !isDualTestMode) && (
-              <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center absolute inset-0 z-10 pt-16">
-                <div className="w-10 h-10 rounded-full border-2 border-blue-500 shadow-[0_0_20px_#0052ff] flex items-center justify-center mb-1.5 animate-pulse">
-                  <span className="text-lg animate-spin">🌀</span>
+        {/* 🔮 SPLIT-SCREEN VIDEO GRID CONTAINER */}
+        <div
+          className={`grid gap-3 min-h-[280px] sm:min-h-[320px] mb-3 w-full relative ${
+            layoutMode === 'vertical' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'
+          }`}
+        >
+
+          {/* 🔵 LEFT COLUMN: PLAYER 1 (KING) */}
+          <div className="flex flex-col min-w-0">
+            {/* Player 1 Glass Identity Badge */}
+            <div className="flex items-center justify-between bg-zinc-950/80 border border-blue-500/40 backdrop-blur-lg px-3 py-1.5 rounded-t-2xl text-xs font-mono font-bold text-blue-200 gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 truncate min-w-0">
+                <Crown size={14} className="text-amber-400 shrink-0" />
+                <span className="text-white font-extrabold truncate text-xs">{p1DisplayName}</span>
+                {(arenaState.king?.userId === activeUserId || myRole === 'PLAYER_1') && (
+                  <span className="text-[9px] bg-blue-600 text-white font-black px-1.5 py-0.5 rounded-md shadow shrink-0">YOU</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* POT Badge */}
+                <div className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg">
+                  <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
+                  <span className="text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
                 </div>
-                <h5 className="m-0 text-blue-200 text-[11px] sm:text-xs font-extrabold uppercase">Connecting to Player 1...</h5>
-                <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] mt-0.5">Establishing direct WebRTC video line.</p>
-              </div>
-            )}
 
-            <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.75)', padding: '2px 6px', fontSize: '9px', borderRadius: '4px', border: '1px solid rgba(0,82,255,0.4)', color: '#60a5fa', fontWeight: 'bold', zIndex: 10 }}>
-              {myRole === 'PLAYER_1' ? "● YOU (PLAYER 1)" : "● OPPONENT (PLAYER 1)"}
+                <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded-lg border border-blue-500/30 text-[10px] font-mono shrink-0">
+                  {p1WalletAddress ? `${p1WalletAddress.substring(0, 6)}...${p1WalletAddress.slice(-4)}` : "..."}
+                </div>
+              </div>
             </div>
 
-            {winnerId === 1 && (
-              <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(52, 168, 83, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', zIndex: 30, animation: 'flashBorder 1s infinite alternate' }}>
-                <h1 style={{ fontSize: '28px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
-                <p style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold', margin: '4px 0 0 0' }}>Payout Dispatched via Base L2</p>
+            {/* Player 1 Camera Frame */}
+            <div
+              className="bg-black relative overflow-hidden flex-1 rounded-b-2xl border-2 border-t-0 border-blue-500/50 shadow-[inset_0_0_40px_rgba(59,130,246,0.2)] group"
+              style={{
+                borderColor: winnerId === 1 ? '#10b981' : undefined,
+                borderWidth: winnerId === 1 ? '4px' : undefined,
+                boxShadow: winnerId === 1 ? '0 0 35px rgba(16, 185, 129, 0.8)' : undefined,
+                minHeight: isFullscreen ? '42vh' : '220px',
+              }}
+            >
+              {/* Target Word Overlay */}
+              <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
+                <div className="bg-amber-400/90 text-black px-4 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-pulse border border-amber-200 flex items-center gap-2">
+                  <span>⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}</span>
+                  {countdown !== null && (
+                    <span className="bg-black text-amber-300 text-xs px-2 py-0.5 rounded-full font-extrabold border border-amber-400/50">
+                      ⏱️ {countdown}s
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Right Column: Player 2 (Challenger) */}
-        <div className="flex flex-col min-w-0">
-          {/* Player 2 Wallet & Identity Header Badge */}
-          <div className="flex items-center justify-between bg-rose-950/90 border border-rose-500/60 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-t-xl text-[11px] sm:text-xs font-mono font-bold text-rose-200 gap-1 min-w-0">
-            <div className="flex items-center gap-1 sm:gap-1.5 truncate min-w-0">
-              <span className="text-sm sm:text-base shrink-0">⚔️</span>
-              <span className="text-white font-extrabold truncate text-[11px] sm:text-xs">{p2DisplayName}</span>
-              {(arenaState.challenger?.userId === activeUserId || myRole === 'PLAYER_2') && (
-                <span className="text-[8px] sm:text-[9px] bg-rose-500 text-white font-black px-1 sm:px-1.5 py-0.2 rounded shadow shrink-0">YOU</span>
+              <video id="p1DuelView" ref={p1VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_1' || isMuted} className="w-full h-full object-cover block transform scale-x-[-1]" />
+              
+              {(myRole !== 'PLAYER_1' && !hasRemoteStream && !isDualTestMode) && (
+                <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-zinc-950 text-center absolute inset-0 z-10 pt-12">
+                  <div className="w-12 h-12 rounded-full border-2 border-blue-500 shadow-[0_0_25px_#0052ff] flex items-center justify-center mb-2 animate-pulse">
+                    <span className="text-xl animate-spin">🌀</span>
+                  </div>
+                  <h5 className="m-0 text-blue-200 text-xs font-extrabold uppercase tracking-wide">Connecting Player 1...</h5>
+                  <p className="text-[10px] text-zinc-400 max-w-[200px] mt-1">Establishing direct P2P WebRTC line.</p>
+                </div>
+              )}
+
+              {/* Glass Identity Tag Bottom Left */}
+              <div className="absolute bottom-3 left-3 bg-zinc-950/70 border border-blue-500/40 backdrop-blur-md px-3 py-1 rounded-xl text-[10px] font-extrabold text-blue-300 shadow z-10 flex items-center gap-1.5">
+                <Crown size={12} className="text-amber-400" />
+                <span>{myRole === 'PLAYER_1' ? "YOU (REIGNING KING)" : "OPPONENT (KING)"}</span>
+              </div>
+
+              {winnerId === 1 && (
+                <div className="absolute inset-0 bg-emerald-500/30 backdrop-blur-sm flex flex-col items-center justify-center z-30 animate-pulse">
+                  <h1 className="text-3xl sm:text-4xl text-white font-black drop-shadow-[0_0_15px_#10b981] m-0">🎉 WINNER 🎉</h1>
+                  <p className="text-xs text-emerald-200 font-bold mt-1">Payout Dispatched via Base L2</p>
+                </div>
               )}
             </div>
+          </div>
 
-            {/* Jackpot Rollover Pot Display */}
-            <div className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0">
-              <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
-              <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+          {/* 💗 RIGHT COLUMN: PLAYER 2 (CHALLENGER) */}
+          <div className="flex flex-col min-w-0">
+            {/* Player 2 Glass Identity Badge */}
+            <div className="flex items-center justify-between bg-zinc-950/80 border border-pink-500/40 backdrop-blur-lg px-3 py-1.5 rounded-t-2xl text-xs font-mono font-bold text-rose-200 gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 truncate min-w-0">
+                <Swords size={14} className="text-pink-400 shrink-0" />
+                <span className="text-white font-extrabold truncate text-xs">{p2DisplayName}</span>
+                {(arenaState.challenger?.userId === activeUserId || myRole === 'PLAYER_2') && (
+                  <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.5 rounded-md shadow shrink-0">YOU</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* POT Badge */}
+                <div className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg">
+                  <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
+                  <span className="text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+                </div>
+
+                <div className="text-rose-300 bg-black/80 px-2 py-0.5 rounded-lg border border-rose-500/30 text-[10px] font-mono shrink-0">
+                  {p2WalletAddress ? `${p2WalletAddress.substring(0, 6)}...${p2WalletAddress.slice(-4)}` : "..."}
+                </div>
+              </div>
             </div>
 
-            <div className="text-rose-300 bg-black/80 px-2 py-0.5 rounded border border-rose-400/30 text-[9px] sm:text-[11px] font-mono shrink-0 ml-1">
-              {p2WalletAddress ? `${p2WalletAddress.substring(0, 6)}...${p2WalletAddress.slice(-4)}` : "..."}
+            {/* Player 2 Camera Frame */}
+            <div
+              className="bg-black relative overflow-hidden flex-1 rounded-b-2xl border-2 border-t-0 border-pink-500/50 shadow-[inset_0_0_40px_rgba(236,72,153,0.2)] group"
+              style={{
+                borderColor: winnerId === 2 ? '#10b981' : undefined,
+                borderWidth: winnerId === 2 ? '4px' : undefined,
+                boxShadow: winnerId === 2 ? '0 0 35px rgba(16, 185, 129, 0.8)' : undefined,
+                minHeight: isFullscreen ? '42vh' : '220px',
+              }}
+            >
+              {/* Target Word Overlay */}
+              <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
+                <div className="bg-amber-400/90 text-black px-4 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-pulse border border-amber-200 flex items-center gap-2">
+                  <span>⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}</span>
+                  {countdown !== null && (
+                    <span className="bg-black text-amber-300 text-xs px-2 py-0.5 rounded-full font-extrabold border border-amber-400/50">
+                      ⏱️ {countdown}s
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <video id="p2DuelView" ref={p2VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_2' || isMuted} className="w-full h-full object-cover block transform scale-x-[-1]" />
+              
+              {(!hasRemoteStream && !isDualTestMode && myRole !== 'PLAYER_2') && (
+                <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-zinc-950 text-center absolute inset-0 z-10">
+                  {gameMode === 'PVAI' ? (
+                    <>
+                      <div className="w-14 h-14 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-2 animate-pulse">
+                        <span className="text-2xl">🤖</span>
+                      </div>
+                      <h4 className="m-0 text-purple-200 text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
+                      <div className="text-[10px] text-purple-300 bg-purple-950/80 px-2.5 py-0.5 rounded-full border border-purple-500/40 my-1.5">
+                        {aiExpressionState}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-14 h-14 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-2 animate-pulse">
+                        <span className="text-2xl animate-bounce">🔍</span>
+                      </div>
+                      <h4 className="m-0 text-amber-200 text-xs font-extrabold uppercase tracking-wider">
+                        {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Challenger..." : "Waiting for Opponent Line..."}
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 max-w-[200px] mt-1 leading-snug">
+                        Waiting for another real player to accept your duel request.
+                      </p>
+                      <button
+                        onClick={() => {
+                          const localStream = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
+                          if (localStream) {
+                            setIsDualTestMode(true);
+                            setHasRemoteStream(true);
+                            setGameMode('PVP');
+                            setMatchStatus('LIVE');
+                            setCountdown(10);
+                            setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
+                          }
+                        }}
+                        className="mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl border border-blue-400/40 shadow-lg transition cursor-pointer"
+                      >
+                        📹 Solo Mirror Preview
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Glass Identity Tag Bottom Left */}
+              <div className="absolute bottom-3 left-3 bg-zinc-950/70 border border-pink-500/40 backdrop-blur-md px-3 py-1 rounded-xl text-[10px] font-extrabold text-pink-300 shadow z-10 flex items-center gap-1.5">
+                <Swords size={12} className="text-pink-400" />
+                <span>{myRole === 'PLAYER_2' ? "YOU (ACTIVE CHALLENGER)" : "OPPONENT (CHALLENGER)"}</span>
+              </div>
+
+              {winnerId === 2 && (
+                <div className="absolute inset-0 bg-emerald-500/30 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-pulse">
+                  <h1 className="text-3xl sm:text-4xl text-white font-black drop-shadow-[0_0_15px_#10b981] m-0">🎉 WINNER 🎉</h1>
+                  <p className="text-xs text-emerald-200 font-bold mt-1">Payout Dispatched via Base L2</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Player 2 Camera Frame */}
-          <div style={{
-            background: '#000',
-            borderRadius: '0 0 8px 8px',
-            border: winnerId === 2 ? '4px solid #34a853' : '2px solid #ff0055',
-            borderTop: 'none',
-            position: 'relative',
-            overflow: 'hidden',
-            flex: 1,
-            minHeight: isFullscreen ? '42vh' : '200px',
-            boxShadow: winnerId === 2 ? '0 0 25px rgba(52, 168, 83, 0.6)' : 'none'
-          }}>
-            {/* Floating Stack & Fullscreen Icon-Only Buttons vertically aligned on top-right */}
-            <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5 pointer-events-auto">
-              <button
-                onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-                className="w-8 h-8 rounded-lg bg-black/80 hover:bg-black/95 border border-white/30 hover:border-white/60 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
-                title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
-                aria-label="Toggle Layout Orientation"
-              >
-                {layoutMode === 'horizontal' ? (
-                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <rect x="3" y="4" width="18" height="7" rx="1.5" />
-                    <rect x="3" y="13" width="18" height="7" rx="1.5" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <rect x="4" y="3" width="7" height="18" rx="1.5" />
-                    <rect x="13" y="3" width="7" height="18" rx="1.5" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className="w-8 h-8 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 border border-indigo-400/50 hover:border-indigo-300 text-white flex items-center justify-center transition shadow-xl backdrop-blur cursor-pointer"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                aria-label="Toggle Fullscreen"
-              >
-                {isFullscreen ? (
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15m-11.25 5.25h4.5m-4.5 0v-4.5m0 4.5L9 15" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {/* Single Flashing Target Word Floating Overlay on Player 2 Camera */}
-            <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
-              <div className="bg-amber-400/95 text-black px-3 sm:px-4 py-1 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.95)] animate-pulse border border-amber-200 transition-all duration-300">
-                ⚡ {targetWords[targetWordIndex] || "WIDE-EYED SHOCK"}
-              </div>
-            </div>
-            {/* Single video element bound to p2VideoRef — handleStreamMapping controls the source dynamically */}
-            <video id="p2DuelView" ref={p2VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_2'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            {(!hasRemoteStream && !isDualTestMode && myRole !== 'PLAYER_2') && (
-              <div
-                className="w-full h-full flex flex-col items-center justify-center p-3 bg-[#07020d] text-center"
-                style={{ position: 'absolute', inset: 0, zIndex: 5 }}
-              >
-                {gameMode === 'PVAI' ? (
-                  <>
-                    <div className="w-12 h-12 rounded-full border-2 border-purple-500 shadow-[0_0_25px_#8a2be2] flex items-center justify-center mb-1.5 animate-pulse">
-                      <span className="text-xl">🤖</span>
-                    </div>
-                    <h4 className="m-0 text-purple-200 text-[11px] sm:text-xs font-extrabold">{botData?.name || "AI HOLOGRAM BOSS"}</h4>
-                    <div className="text-[9px] sm:text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-500/40 my-1">
-                      {aiExpressionState}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-12 h-12 rounded-full border-2 border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.5)] flex items-center justify-center mb-1.5 animate-pulse">
-                      <span className="text-xl animate-bounce">🔍</span>
-                    </div>
-                    <h4 className="m-0 text-amber-200 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider">
-                      {matchStatus === 'QUEUEING' || matchStatus === 'WAITING' ? "Searching Human Player 2..." : "Waiting for Player 2 Line..."}
-                    </h4>
-                    <p className="text-[9px] sm:text-[10px] text-gray-400 max-w-[200px] my-1 font-medium leading-tight">
-                      Waiting for another real player to accept your duel request.
-                    </p>
-                    <button
-                      onClick={() => {
-                        const localStream = activeMediaStreamRef.current || videoContext?.mediaStream || videoContext?.getMediaStream?.() || null;
-                        if (localStream) {
-                          setIsDualTestMode(true);
-                          setHasRemoteStream(true);
-                          setGameMode('PVP');
-                          setMatchStatus('LIVE');
-                          setCountdown(10);
-                          setChatLog(prev => [...prev, "📹 Solo Mirror Test Mode Enabled!"]);
-                        }
-                      }}
-                      className="mt-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[9px] sm:text-[10px] px-2 py-1 rounded-lg border border-blue-400/40 shadow transition cursor-pointer"
-                    >
-                      📹 Solo Mirror Preview
-                    </button>
-                  </>
-                )}
+        </div>
+
+        {/* 🛠️ CENTRAL FLOATING ACTION CONTROLS */}
+        <div className="my-3 flex justify-center z-30">
+          <div className="bg-zinc-950/80 border border-white/10 backdrop-blur-xl p-2 rounded-full flex items-center gap-3 shadow-2xl">
+            {/* Columns Layout Toggle */}
+            <button
+              onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+              className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:bg-white/10 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
+              title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+              aria-label="Toggle Layout"
+            >
+              <Columns size={18} />
+            </button>
+
+            {/* Mic Mute Toggle */}
+            <button
+              onClick={() => setIsMuted(prev => !prev)}
+              className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-all duration-200 active:scale-95 cursor-pointer ${
+                isMuted
+                  ? "bg-rose-600 hover:bg-rose-500 shadow-[0_0_20px_rgba(225,29,72,0.4)]"
+                  : "bg-blue-500 hover:bg-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.4)]"
+              }`}
+              title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+              aria-label="Toggle Microphone Mute"
+            >
+              {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+            </button>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={toggleFullscreen}
+              className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:bg-white/10 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              aria-label="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+
+            {/* Sidebar Roster Access Button Toggle */}
+            <button
+              onClick={() => setIsSidebarOpen(prev => !prev)}
+              className={`w-11 h-11 rounded-full border flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer ${
+                isSidebarOpen
+                  ? "bg-pink-500 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)] scale-105"
+                  : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white"
+              }`}
+              title="Toggle Arena Queue Sidebar"
+              aria-label="Toggle Queue Sidebar"
+            >
+              <Users size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* 🚀 MATCH CONTROL BUTTON (When inactive/complete) */}
+        {(matchStatus === "INACTIVE" || matchStatus === "COMPLETE") && (
+          <div className="mb-3">
+            <button
+              onClick={triggerMatchmakePipeline}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-sm sm:text-base rounded-2xl shadow-[0_0_30px_rgba(245,158,11,0.5)] transition transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-300"
+            >
+              <span>⚔️ {matchStatus === "COMPLETE" ? "Play Next P2P Duel Round" : "Start P2P Arena Match ($0.20 Bids)"}</span>
+            </button>
+          </div>
+        )}
+
+        {matchStatus === "QUEUEING" && (
+          <div className="mb-3 py-4 flex flex-col items-center justify-center border border-dashed border-purple-500/50 rounded-2xl p-4 text-center space-y-2 bg-purple-950/30 backdrop-blur-md">
+            <div className="w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-purple-200 text-xs font-bold m-0">Connecting to P2P WebRTC match queue...</p>
+          </div>
+        )}
+
+        {/* 📋 LIVE ONLINE ARENA QUEUE ROSTER PANEL */}
+        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl">
+          <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-white/10">
+            <h4 className="text-xs font-extrabold text-zinc-200 uppercase tracking-wide flex items-center gap-2 m-0">
+              <Users size={16} className="text-pink-400" />
+              <span>Live Arena Queue Roster ({arenaState.queue.length + (arenaState.king ? 1 : 0) + (arenaState.challenger ? 1 : 0)} Players)</span>
+            </h4>
+            <span className="text-[11px] text-zinc-400 font-semibold">
+              {arenaState.queue.length} in waiting queue
+            </span>
+          </div>
+
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {/* Active King */}
+            {arenaState.king && (
+              <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs">
+                <div className="flex items-center gap-2">
+                  <Crown size={16} className="text-amber-400" />
+                  <div>
+                    <span className="font-extrabold text-amber-300">
+                      {arenaState.king.userName} {arenaState.king.userId === activeUserId ? "(YOU)" : ""}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                      {arenaState.king.walletAddress?.slice(0, 6)}...{arenaState.king.walletAddress?.slice(-4)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                    REIGNING KING ({arenaState.king.consecutiveWins || 1} WINS)
+                  </span>
+                  <span className="text-xs text-zinc-200 font-extrabold">
+                    ${(arenaState.king.bidAmount || 0.20).toFixed(2)}
+                  </span>
+                </div>
               </div>
             )}
 
-            <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.75)', padding: '2px 6px', fontSize: '9px', borderRadius: '4px', border: '1px solid rgba(255,0,85,0.4)', color: '#f43f5e', fontWeight: 'bold', zIndex: 10 }}>
-              {myRole === 'PLAYER_2' ? "● YOU (PLAYER 2 - CHALLENGER)" : "● OPPONENT (PLAYER 2)"}
-            </div>
-
-            {winnerId === 2 && (
-              <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(52, 168, 83, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', zIndex: 20, animation: 'flashBorder 1s infinite alternate' }}>
-                <h1 style={{ fontSize: '28px', color: '#fff', textShadow: '0 0 10px #000', margin: 0, fontWeight: 900 }}>🎉 WINNER 🎉</h1>
-                <p style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold', margin: '4px 0 0 0' }}>Payout Dispatched via Base L2</p>
+            {/* Active Challenger */}
+            {arenaState.challenger && (
+              <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs">
+                <div className="flex items-center gap-2">
+                  <Swords size={16} className="text-pink-400" />
+                  <div>
+                    <span className="font-extrabold text-rose-300">
+                      {arenaState.challenger.userName} {arenaState.challenger.userId === activeUserId ? "(YOU)" : ""}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                      {arenaState.challenger.walletAddress?.slice(0, 6)}...{arenaState.challenger.walletAddress?.slice(-4)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-500/40">
+                    ACTIVE CHALLENGER
+                  </span>
+                  <span className="text-xs text-zinc-200 font-extrabold">
+                    ${(arenaState.challenger.bidAmount || 0.20).toFixed(2)}
+                  </span>
+                </div>
               </div>
+            )}
+
+            {/* Queued Waiting Players */}
+            {arenaState.queue.length > 0 ? (
+              arenaState.queue.map((qUser, idx) => {
+                const isRegular = qUser.bidAmount <= 0.20;
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border backdrop-blur-md transition ${
+                      qUser.userId === activeUserId
+                        ? "bg-indigo-900/40 border-indigo-500/60 font-bold"
+                        : "bg-white/5 border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-amber-400 min-w-[20px]">
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <span className={qUser.userId === activeUserId ? "text-indigo-300 font-extrabold" : "text-zinc-200"}>
+                          {qUser.userName} {qUser.userId === activeUserId ? "(YOU)" : ""}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                          {qUser.walletAddress?.slice(0, 6)}...
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {qUser.bidAmount > 0.20 && (
+                        <span className="bg-purple-900/60 text-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-purple-500/40">
+                          ⚡ Priority Bid
+                        </span>
+                      )}
+                      {isRegular && (
+                        <span className="bg-zinc-800 text-zinc-300 text-[9px] font-medium px-2 py-0.5 rounded-full">
+                          Standard
+                        </span>
+                      )}
+                      <span className="font-black text-amber-300 text-xs">
+                        ${qUser.bidAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              (!arenaState.king && !arenaState.challenger) && (
+                <div className="text-center py-3 text-xs text-zinc-400 font-medium">
+                  Queue is empty. Select your bet amount and click "Join Arena Queue" to play!
+                </div>
+              )
             )}
           </div>
         </div>
 
+        {/* 💳 ARENA QUEUE & BID ACTION PANEL */}
+        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            
+            {/* Bid / Bet Amount Selector */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
+              <span className="text-xs font-extrabold text-zinc-200 uppercase tracking-wide shrink-0">
+                💰 <span className="hidden sm:inline">Bet / </span>Bid:
+              </span>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
+                {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setBidAmount(amt)}
+                    className={`text-xs font-black px-3 py-1.5 rounded-xl border transition cursor-pointer shrink-0 whitespace-nowrap ${
+                      bidAmount === amt
+                        ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] scale-105"
+                        : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10"
+                    }`}
+                  >
+                    ${amt.toFixed(2)} <span className="hidden md:inline">{amt > 0.20 ? "⚡ Priority" : ""}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Queue Action Button */}
+            <div className="w-full sm:w-auto">
+              {myRole === 'QUEUED' ? (
+                <button
+                  onClick={handleLeaveArenaQueue}
+                  className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-4 py-2.5 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-2 animate-pulse"
+                >
+                  <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Leave</span>
+                </button>
+              ) : myRole === 'SPECTATOR' ? (
+                <button
+                  onClick={handleJoinArenaQueue}
+                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs px-5 py-2.5 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>⚔️ JOIN QUEUE (${bidAmount.toFixed(2)})</span>
+                </button>
+              ) : (
+                <div className="w-full sm:w-auto bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2">
+                  <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Democratized 10-Play Rule Indicator Banner */}
+          <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 text-xs text-zinc-300">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-extrabold text-amber-300">👑 Winner Stays On</span>
+              <span className="text-zinc-500">•</span>
+              <span className="hidden sm:inline">Higher bids jump queue</span>
+              <span className="hidden sm:inline text-zinc-500">•</span>
+              <span className="text-zinc-300 font-semibold">
+                Matches: <strong className="text-white">#{arenaState.matchCounter}</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs">
+              {arenaState.isDemocratizedTurn ? (
+                <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+                  ⚖️ MATCH #{arenaState.matchCounter} IS DEMOCRATIZED! Longest-waiting regular player turn!
+                </span>
+              ) : (
+                <span className="text-zinc-400 font-medium">
+                  ⚖️ Regular Democratized Turn: <strong className="text-amber-300">in {10 - (arenaState.matchCounter % 10)} plays</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 📡 LIVE ARENA TRANSMISSION LOG */}
+        <div className="bg-zinc-950/80 border border-white/10 rounded-2xl p-3 max-h-28 overflow-y-auto">
+          <div className="text-[10px] font-bold text-zinc-400 mb-1 tracking-wider uppercase">
+            📡 LIVE ARENA TRANSMISSION LOG:
+          </div>
+          {chatLog.map((msg, idx) => (
+            <div key={idx} className="text-xs mb-1 font-mono text-zinc-300">
+              {msg}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Match Control Buttons */}
-      {(matchStatus === "INACTIVE" || matchStatus === "COMPLETE") && (
-        <div className="space-y-3">
-          <button
-            onClick={triggerMatchmakePipeline}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-sm rounded-xl shadow-xl transition transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2"
+      {/* 👥 ─── NEW GLASSMORPHIC SLIDE-OUT QUEUE ROSTER SIDEBAR ─── */}
+      <div className={`fixed top-0 right-0 h-full z-50 bg-zinc-950/90 border-l border-white/10 backdrop-blur-2xl flex flex-col shadow-2xl transition-all duration-500 ease-in-out ${isSidebarOpen ? 'w-full md:w-80 lg:w-96 opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-full pointer-events-none'}`}>
+        
+        {/* Sidebar Top Controls Row */}
+        <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-zinc-950">
+          <div className="flex items-center gap-2.5">
+            <LayoutGrid size={18} className="text-pink-400" />
+            <h2 className="text-base sm:text-lg font-bold tracking-tight text-white m-0">Arena Roster</h2>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors duration-200 cursor-pointer"
+            aria-label="Close Queue Sidebar"
           >
-            <span>⚔️ {matchStatus === "COMPLETE" ? "Play Next P2P Duel Round" : "Start P2P Arena Match ($0.20 Bids)"}</span>
+            <X size={16} />
           </button>
         </div>
-      )}
 
-      {matchStatus === "QUEUEING" && (
-        <div className="py-4 flex flex-col items-center justify-center border border-dashed border-purple-500/50 rounded-xl p-4 text-center space-y-2 bg-purple-950/20">
-          <div className="w-7 h-7 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-purple-200 text-xs font-bold m-0">Connecting to P2P WebRTC match queue...</p>
-        </div>
-      )}
-
-      {/* Live Online Arena Queue Roster Panel */}
-      <div className="bg-[#0b0f19] border border-purple-500/30 rounded-xl p-3 mt-3 shadow">
-        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-purple-500/20">
-          <h4 className="text-xs font-extrabold text-purple-200 uppercase tracking-wide flex items-center gap-1.5 m-0">
-            <span>📋</span>
-            <span>Live Arena Queue Roster ({arenaState.queue.length + (arenaState.king ? 1 : 0) + (arenaState.challenger ? 1 : 0)} Players)</span>
-          </h4>
-          <span className="text-[10px] text-gray-400 font-semibold">
-            {arenaState.queue.length} in waiting queue
-          </span>
-        </div>
-
-        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-          {/* Active King */}
-          {arenaState.king && (
-            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/40 px-2.5 py-1.5 rounded-lg text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-base">👑</span>
-                <div>
-                  <span className="font-extrabold text-amber-300">
-                    {arenaState.king.userName} {arenaState.king.userId === activeUserId ? "(YOU)" : ""}
-                  </span>
-                  <span className="text-[10px] text-gray-400 ml-2 font-mono">
-                    {arenaState.king.walletAddress?.slice(0, 6)}...{arenaState.king.walletAddress?.slice(-4)}
-                  </span>
+        {/* Active Reigning King & Challenger Overview */}
+        <div className="p-4 border-b border-white/10 space-y-2 shrink-0 bg-white/5">
+          {arenaState?.king && (
+            <div className="flex items-center justify-between bg-blue-500/10 border border-blue-500/30 p-2.5 rounded-xl text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <Crown size={14} className="text-amber-400 shrink-0" />
+                <div className="truncate">
+                  <span className="font-extrabold text-blue-300 block truncate">{arenaState.king.userName}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">{arenaState.king.walletAddress?.slice(0, 6)}...</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded border border-amber-500/40">
-                  REIGNING KING ({arenaState.king.consecutiveWins || 1} WINS)
-                </span>
-                <span className="text-[10px] text-gray-300 font-bold">
-                  ${(arenaState.king.bidAmount || 0.20).toFixed(2)}
-                </span>
-              </div>
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 font-black px-2 py-0.5 rounded-full border border-blue-400/30 shrink-0">
+                👑 KING ({arenaState.king.consecutiveWins || 1}W)
+              </span>
             </div>
           )}
 
-          {/* Active Challenger */}
-          {arenaState.challenger && (
-            <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/40 px-2.5 py-1.5 rounded-lg text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-base">⚔️</span>
-                <div>
-                  <span className="font-extrabold text-rose-300">
-                    {arenaState.challenger.userName} {arenaState.challenger.userId === activeUserId ? "(YOU)" : ""}
-                  </span>
-                  <span className="text-[10px] text-gray-400 ml-2 font-mono">
-                    {arenaState.challenger.walletAddress?.slice(0, 6)}...{arenaState.challenger.walletAddress?.slice(-4)}
-                  </span>
+          {arenaState?.challenger && (
+            <div className="flex items-center justify-between bg-pink-500/10 border border-pink-500/30 p-2.5 rounded-xl text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <Swords size={14} className="text-pink-400 shrink-0" />
+                <div className="truncate">
+                  <span className="font-extrabold text-pink-300 block truncate">{arenaState.challenger.userName}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">{arenaState.challenger.walletAddress?.slice(0, 6)}...</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2 py-0.5 rounded border border-rose-500/40">
-                  ACTIVE CHALLENGER
-                </span>
-                <span className="text-[10px] text-gray-300 font-bold">
-                  ${(arenaState.challenger.bidAmount || 0.20).toFixed(2)}
-                </span>
-              </div>
+              <span className="text-[10px] bg-pink-500/20 text-pink-300 font-black px-2 py-0.5 rounded-full border border-pink-400/30 shrink-0">
+                ⚔️ CHALLENGER
+              </span>
             </div>
           )}
+        </div>
 
-          {/* Queued Waiting Players */}
-          {arenaState.queue.length > 0 ? (
-            arenaState.queue.map((qUser, idx) => {
-              const isRegular = qUser.bidAmount <= 0.20;
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs border ${
-                    qUser.userId === activeUserId
-                      ? "bg-indigo-900/40 border-indigo-500/60 font-bold"
-                      : "bg-white/5 border-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-amber-400 min-w-[20px]">
-                      #{idx + 1}
-                    </span>
-                    <div>
-                      <span className={qUser.userId === activeUserId ? "text-indigo-300 font-extrabold" : "text-gray-200"}>
-                        {qUser.userName} {qUser.userId === activeUserId ? "(YOU)" : ""}
-                      </span>
-                      <span className="text-[10px] text-gray-400 ml-2 font-mono">
-                        {qUser.walletAddress?.slice(0, 6)}...
-                      </span>
-                    </div>
+        {/* Roster Queue Mapping Box */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 custom-scrollbar">
+          <div className="text-xs font-extrabold text-zinc-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <span>Live Queue ({arenaState?.queue?.length || 0})</span>
+            <span className="text-[10px] text-amber-300 font-bold">Priority Bids Jump Queue</span>
+          </div>
+
+          {arenaState?.queue && arenaState.queue.length > 0 ? (
+            arenaState.queue.map((player, idx) => (
+              <div 
+                key={player.userId || idx}
+                className={`border rounded-2xl p-3 flex items-center justify-between shadow-lg transition-all duration-200 group hover:translate-x-1 ${
+                  player.userId === activeUserId 
+                    ? 'bg-purple-900/40 border-purple-500/60' 
+                    : 'bg-white/5 border-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center gap-3 truncate min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 group-hover:text-pink-400 transition-colors duration-200">
+                    #{idx + 1}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    {qUser.bidAmount > 0.20 && (
-                      <span className="bg-purple-900/60 text-purple-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-purple-500/40">
-                        ⚡ Priority Bid
-                      </span>
-                    )}
-                    {isRegular && (
-                      <span className="bg-gray-800 text-gray-300 text-[9px] font-medium px-1.5 py-0.5 rounded">
-                        Standard
-                      </span>
-                    )}
-                    <span className="font-black text-amber-300">
-                      ${qUser.bidAmount.toFixed(2)}
+                  <div className="flex flex-col truncate min-w-0">
+                    <span className="text-xs sm:text-sm font-bold text-white truncate">
+                      {player.userName} {player.userId === activeUserId ? "(YOU)" : ""}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono tracking-tight truncate">
+                      {player.walletAddress?.slice(0, 6)}...{player.walletAddress?.slice(-4)}
                     </span>
                   </div>
                 </div>
-              );
-            })
+                <div className="text-right flex flex-col items-end shrink-0 ml-2">
+                  <span className="text-xs font-extrabold text-emerald-400 tracking-tight">
+                    ${(player.bidAmount || 0.20).toFixed(2)}
+                  </span>
+                  <span className="text-[9px] font-medium text-zinc-400 uppercase tracking-widest mt-0.5">
+                    {player.bidAmount > 0.20 ? "⚡ PRIORITY" : "STANDARD"}
+                  </span>
+                </div>
+              </div>
+            ))
           ) : (
-            (!arenaState.king && !arenaState.challenger) && (
-              <div className="text-center py-3 text-xs text-gray-400 font-medium">
-                Queue is empty. Select your bet amount and click "Join Arena Queue" to play!
-              </div>
-            )
+            <div className="h-64 flex flex-col items-center justify-center text-center py-12 px-4">
+              <span className="text-3xl mb-2 opacity-50">💤</span>
+              <p className="text-sm font-semibold text-zinc-300">Queue is empty</p>
+              <p className="text-xs text-zinc-500 mt-1">Select your bid amount below and click Join Queue to battle!</p>
+            </div>
           )}
         </div>
-      </div>
 
-      {/* Arena Queue & Bid Action Panel */}
-      <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/80 to-blue-950/80 border border-purple-500/40 rounded-xl p-2.5 sm:p-3 mt-3 shadow-lg">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
-          
-          {/* Bid / Bet Amount Selector */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 min-w-0">
-            <span className="text-[10px] sm:text-xs font-extrabold text-purple-200 uppercase tracking-wide shrink-0">
-              💰 <span className="hidden sm:inline">Bet / </span>Bid:
-            </span>
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
-              {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setBidAmount(amt)}
-                  className={`text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition cursor-pointer shrink-0 whitespace-nowrap ${
-                    bidAmount === amt
-                      ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-105"
-                      : "bg-white/5 hover:bg-white/15 text-gray-300 border-white/10"
-                  }`}
-                >
-                  ${amt.toFixed(2)} <span className="hidden md:inline">{amt > 0.20 ? "⚡ Priority" : ""}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Queue Action Button */}
-          <div className="w-full sm:w-auto">
-            {myRole === 'QUEUED' ? (
-              <button
-                onClick={handleLeaveArenaQueue}
-                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-black font-black text-xs px-3 sm:px-4 py-2 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5 animate-pulse"
-              >
-                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Leave</span>
-              </button>
-            ) : myRole === 'SPECTATOR' ? (
-              <button
-                onClick={handleJoinArenaQueue}
-                className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs px-4 sm:px-5 py-2 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>⚔️ JOIN QUEUE (${bidAmount.toFixed(2)})</span>
-              </button>
-            ) : (
-              <div className="w-full sm:w-auto bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5">
-                <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
-              </div>
-            )}
-          </div>
+        {/* Sidebar Footer Join Queue Action */}
+        <div className="p-4 border-t border-white/10 bg-zinc-950 shrink-0">
+          {myRole === 'QUEUED' ? (
+            <button
+              onClick={handleLeaveArenaQueue}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black text-xs py-3 px-4 rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Click to Leave</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleJoinArenaQueue}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs py-3 px-4 rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>⚔️ JOIN ARENA QUEUE (${bidAmount.toFixed(2)})</span>
+            </button>
+          )}
         </div>
 
-        {/* Democratized 10-Play Rule Indicator Banner */}
-        <div className="mt-2 pt-2 border-t border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px] sm:text-[11px] text-gray-300">
-          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-            <span className="font-extrabold text-amber-300">👑 Winner Stays On</span>
-            <span className="text-gray-500">•</span>
-            <span className="hidden sm:inline">Higher bids jump queue</span>
-            <span className="hidden sm:inline text-gray-500">•</span>
-            <span className="text-purple-300 font-semibold">
-              Matches: <strong className="text-white">#{arenaState.matchCounter}</strong>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
-            {arenaState.isDemocratizedTurn ? (
-              <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40">
-                ⚖️ MATCH #{arenaState.matchCounter} IS DEMOCRATIZED! Longest-waiting regular player turn!
-              </span>
-            ) : (
-              <span className="text-purple-300 font-medium">
-                ⚖️ Regular Democratized Turn: <strong className="text-amber-300">in {10 - (arenaState.matchCounter % 10)} plays</strong>
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Live Arena Transmission Log */}
-      <div className="bg-[#05020a] border border-[#30363d] rounded-xl p-2.5 mt-3 max-h-28 overflow-y-auto">
-        <div className="text-[10px] font-bold text-gray-400 mb-1">
-          📡 LIVE ARENA TRANSMISSION LOG:
-        </div>
-        {chatLog.map((msg, idx) => (
-          <div key={idx} className="text-[11px] mb-1 font-mono text-gray-200">
-            {msg}
-          </div>
-        ))}
       </div>
 
     </div>

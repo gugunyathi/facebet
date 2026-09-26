@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MdMenu,
   MdClose,
@@ -94,22 +95,21 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         <MdMenu className="w-6 h-6" />
       </button>
 
-      {/* Slide-over Backdrop */}
-      {isOpen && (
-        <div
-          onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transition-opacity"
-        />
-      )}
+      {/* Slide-over Backdrop & Drawer rendered via Portal at document.body level */}
+      {isOpen && typeof document !== "undefined" && createPortal(
+        <>
+          {/* Slide-over Backdrop */}
+          <div
+            onClick={() => setIsOpen(false)}
+            className="fixed inset-0 bg-black/80 z-[99988] transition-opacity"
+          />
 
-      {/* Sliding Drawer Menu */}
-      <div
-        className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-[#0c082d] border-r border-[#644af1]/40 text-white z-50 shadow-2xl transition-transform duration-300 transform flex flex-col ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        {/* Drawer Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#110c38]">
+          {/* Sliding Drawer Menu */}
+          <div
+            className="fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-[#0a0624] border-r border-[#644af1]/60 text-white z-[99999] shadow-[0_0_50px_rgba(0,0,0,0.9)] transition-transform duration-300 transform flex flex-col translate-x-0"
+          >
+            {/* Drawer Header */}
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#130d42] shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-gradient-to-tr from-yellow-400 via-amber-500 to-purple-600 rounded-xl">
               <MdStars className="w-5 h-5 text-black" />
@@ -125,14 +125,14 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
           <button
             onClick={() => setIsOpen(false)}
             aria-label="Close Navigation Menu"
-            className="p-1.5 bg-white/5 hover:bg-white/15 rounded-lg text-gray-300 hover:text-white transition"
+            className="p-1.5 bg-[#251973] hover:bg-[#322396] rounded-lg text-gray-300 hover:text-white transition"
           >
             <MdClose className="w-5 h-5" />
           </button>
         </div>
 
         {/* User Session Quick Info */}
-        <div className="p-4 bg-white/5 border-b border-white/10">
+        <div className="p-4 bg-[#140e47] border-b border-white/10 shrink-0">
           {userSession ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
@@ -155,7 +155,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               </div>
               <button
                 onClick={() => { onLogout(); setIsOpen(false); }}
-                className="w-full mt-1 flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/30"
+                className="w-full mt-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/40"
               >
                 <MdLogout className="w-4 h-4" />
                 Disconnect Wallet
@@ -172,7 +172,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               </p>
               <button
                 onClick={() => handleNavigate("about")}
-                className="w-full mt-1 bg-[#644af1] hover:bg-[#5239e0] text-white text-xs font-bold py-2 px-3 rounded-lg transition"
+                className="w-full mt-1 bg-[#644af1] hover:bg-[#5239e0] text-white text-xs font-bold py-2 px-3 rounded-lg transition shadow-md"
               >
                 Connect Wallet / Web3 Auth →
               </button>
@@ -181,9 +181,9 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         </div>
 
         {/* Global Controls */}
-        <div className="p-3 border-b border-white/10 space-y-3">
+        <div className="p-3 border-b border-white/10 space-y-3 shrink-0 bg-[#0f0933]">
           {/* Continuous Auto-Battle Status Control Banner */}
-          <div className="flex flex-col bg-purple-950/60 border border-purple-500/40 p-2.5 rounded-xl gap-2">
+          <div className="flex flex-col bg-[#1c135c] border border-[#644af1]/50 p-2.5 rounded-xl gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className={`w-2 h-2 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
               <div className="text-[11px] sm:text-xs truncate">
@@ -197,8 +197,8 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               onClick={() => setAutoBattle?.(prev => !prev)}
               className={`w-full text-xs py-1.5 rounded-lg font-black border transition cursor-pointer shrink-0 ${
                 autoBattle
-                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30"
-                  : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
+                  ? "bg-emerald-600 text-white border-emerald-400 hover:bg-emerald-500"
+                  : "bg-gray-800 text-gray-200 border-gray-600 hover:bg-gray-700"
               }`}
             >
               {autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}
@@ -206,7 +206,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
           </div>
 
           {/* Camera Device & Solo Mirror Controls */}
-          <div className="flex flex-col bg-purple-950/60 border border-purple-500/40 p-2.5 rounded-xl gap-2">
+          <div className="flex flex-col bg-[#1c135c] border border-[#644af1]/50 p-2.5 rounded-xl gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] sm:text-xs font-extrabold text-purple-200 flex items-center gap-1.5">
                 <MdVideocam className="w-4 h-4 text-purple-300 shrink-0" />
@@ -218,7 +218,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   className={`text-[10px] px-2 py-0.5 rounded-lg font-black border transition cursor-pointer shrink-0 ${
                     isDualTestMode
                       ? "bg-blue-600 text-white border-blue-400 shadow-md"
-                      : "bg-white/10 hover:bg-white/20 text-gray-200 border-white/20"
+                      : "bg-[#281a7a] hover:bg-[#34239c] text-gray-200 border-purple-400/40"
                   }`}
                   title="Toggle solo mirror test mode"
                 >
@@ -234,7 +234,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   <select
                     value={p1DeviceId || ''}
                     onChange={(e) => setP1DeviceId?.(e.target.value)}
-                    className="bg-[#110c38] text-gray-200 text-[11px] rounded px-2 py-1 border border-purple-500/40 outline-none focus:border-purple-400 max-w-[150px] truncate cursor-pointer font-medium"
+                    className="bg-[#0c082d] text-gray-100 text-[11px] rounded px-2 py-1 border border-purple-400 outline-none focus:border-purple-300 max-w-[150px] truncate cursor-pointer font-medium"
                   >
                     {videoDevices.map((dev, i) => (
                       <option key={dev.deviceId || i} value={dev.deviceId}>
@@ -250,7 +250,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                     <select
                       value={p2DeviceId || ''}
                       onChange={(e) => setP2DeviceId?.(e.target.value)}
-                      className="bg-[#110c38] text-gray-200 text-[11px] rounded px-2 py-1 border border-rose-500/40 outline-none focus:border-rose-400 max-w-[150px] truncate cursor-pointer font-medium"
+                      className="bg-[#0c082d] text-gray-100 text-[11px] rounded px-2 py-1 border border-rose-400 outline-none focus:border-rose-300 max-w-[150px] truncate cursor-pointer font-medium"
                     >
                       {videoDevices.map((dev, i) => (
                         <option key={dev.deviceId || i} value={dev.deviceId}>
@@ -275,7 +275,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                 onOpenArcOnramp?.();
                 setIsOpen(false);
               }}
-              className="flex-1 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-lg transition flex justify-center items-center space-x-1 border border-purple-400/40 cursor-pointer"
+              className="flex-1 bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-lg transition flex justify-center items-center space-x-1 border border-purple-400/60 cursor-pointer"
               title="Buy USDC/EURC on Arc with Fiat & Cards"
             >
               <MdCreditCard className="w-3.5 h-3.5 text-purple-200 shrink-0" />
@@ -288,7 +288,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                 onOpenArcAppKit?.();
                 setIsOpen(false);
               }}
-              className="flex-1 bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-400/50 font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-md transition flex justify-center items-center space-x-1 cursor-pointer"
+              className="flex-1 bg-[#281878] hover:bg-[#321f96] text-purple-200 border border-purple-400/60 font-extrabold text-[10px] px-2 py-1.5 rounded-xl shadow-md transition flex justify-center items-center space-x-1 cursor-pointer"
               title="Arc App Kit Hub (Bridge, Swap, Send, Earn)"
             >
               <MdAccountBalanceWallet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
@@ -298,7 +298,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto bg-[#0a0624]">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePage === item.id;
@@ -308,13 +308,13 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                 onClick={() => handleNavigate(item.id)}
                 className={`w-full text-left p-3 rounded-xl transition flex items-start space-x-3 border ${
                   isActive
-                    ? "bg-[#644af1]/20 border-[#644af1] text-white"
-                    : "bg-white/5 border-transparent text-gray-300 hover:bg-white/10 hover:text-white"
+                    ? "bg-[#644af1] border-[#7c63ff] text-white shadow-lg"
+                    : "bg-[#181050] border-white/10 text-gray-200 hover:bg-[#22176e] hover:text-white"
                 }`}
               >
                 <div
                   className={`p-2 rounded-lg mt-0.5 ${
-                    isActive ? "bg-[#644af1] text-white" : "bg-white/10 text-gray-300"
+                    isActive ? "bg-[#4f35cf] text-white" : "bg-[#251973] text-gray-200"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -326,7 +326,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                       <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-400 mt-0.5 leading-tight truncate">
+                  <div className="text-[11px] text-gray-300 mt-0.5 leading-tight truncate">
                     {item.desc}
                   </div>
                 </div>
@@ -336,11 +336,11 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         </nav>
 
         {/* Drawer Footer */}
-        <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300 space-y-2">
+        <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300 space-y-2 shrink-0">
           {userSession && (
             <button
               onClick={() => { onLogout(); setIsOpen(false); }}
-              className="w-full flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/30"
+              className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/40"
             >
               <MdLogout className="w-4 h-4" />
               Logout / Disconnect Wallet
@@ -350,6 +350,9 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
           <div className="text-purple-300">Base &amp; ARC Smart Contracts</div>
         </div>
       </div>
+        </>,
+        document.body
+      )}
     </>
   );
 };

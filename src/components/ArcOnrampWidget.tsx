@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { MdClose, MdCreditCard, MdCheckCircle, MdErrorOutline, MdLock, MdFlashOn } from "react-icons/md";
 import { createOnrampKit } from "@circle-fin/onramp-kit";
 import { API_URL } from "../utils/constants";
@@ -125,8 +126,8 @@ export const ArcOnrampWidget: React.FC<ArcOnrampWidgetProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4">
       <div className="bg-[#0e0a2d] border border-[#644af1]/60 rounded-2xl max-w-xl w-full p-4 sm:p-6 relative shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         
         {/* Modal Close Button */}
@@ -318,7 +319,8 @@ export const ArcOnrampWidget: React.FC<ArcOnrampWidgetProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
