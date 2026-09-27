@@ -126,15 +126,17 @@ const Main: React.FC<MainProps> = ({
   return (
     <VideoProvider.Provider value={values}>
       <div className="w-full h-full flex flex-col relative overflow-y-auto">
-        {/* Arena Mode Switcher Bar & Base Pay Ticket Control */}
-        <div className="w-full bg-[#110c38] border-b border-[#644af1]/30 p-1.5 sm:p-2 flex items-center justify-between gap-1.5 sm:gap-2 z-10 shrink-0 px-2 sm:px-6 overflow-x-auto whitespace-nowrap">
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Arena Mode Switcher Bar & Base Pay Ticket Control (Responsive & Dynamic) */}
+        <div className="w-full bg-[#110c38] border-b border-[#644af1]/30 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2 z-10 shrink-0 select-none overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap">
+          {/* Left Mode Selector Group */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={() => setArenaMode("boss")}
-              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[11px] sm:text-xs transition flex items-center gap-1 shrink-0 ${arenaMode === "boss"
+              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[10px] sm:text-xs transition flex items-center gap-1 shrink-0 ${
+                arenaMode === "boss"
                   ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow border border-purple-400/50"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
-                }`}
+              }`}
             >
               <span>🔮</span>
               <span>P2AI</span>
@@ -142,37 +144,48 @@ const Main: React.FC<MainProps> = ({
 
             <button
               onClick={() => setArenaMode("p2p")}
-              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[11px] sm:text-xs transition flex items-center gap-1 shrink-0 ${arenaMode === "p2p"
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow"
+              className={`px-2 sm:px-3 py-1 rounded-lg font-extrabold text-[10px] sm:text-xs transition flex items-center gap-1 shrink-0 ${
+                arenaMode === "p2p"
+                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow font-black"
                   : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
-                }`}
+              }`}
             >
               <span>⚔️</span>
               <span>P2P</span>
             </button>
           </div>
 
-          {/* Online Status Badge & Quick Base USDC Ticket Purchase Button */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-300 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-emerald-500/40 normal-case font-extrabold shrink-0 flex items-center gap-1 shadow">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>{onlineUsersCount} Online</span>
-            </span>
-
+          {/* Right Action Control Group */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {payMessage && (
-              <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 animate-pulse">
+              <span className="text-[9px] sm:text-[11px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 animate-pulse truncate max-w-[100px] sm:max-w-none">
                 {payMessage}
               </span>
             )}
+
+            {/* Base Pay Button */}
             <button
               onClick={handleBasePay}
               disabled={isPaying}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-lg shadow border border-blue-400/40 transition active:scale-95 disabled:opacity-50 flex items-center gap-1 shrink-0"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg shadow border border-blue-400/40 transition active:scale-95 disabled:opacity-50 flex items-center gap-1 shrink-0"
             >
-              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-300 animate-ping"></span>
-              <span>
-                {isPaying ? "Opening..." : "🔵 Base Pay ($1)"}
-              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-300 animate-ping shrink-0"></span>
+              <span className="hidden md:inline">{isPaying ? "Opening..." : "🔵 Base Pay ($1)"}</span>
+              <span className="md:hidden">{isPaying ? "Opening..." : "🔵 Pay ($1)"}</span>
+            </button>
+
+            {/* Start P2P Match Button */}
+            <button
+              onClick={() => {
+                setArenaMode("p2p");
+                window.dispatchEvent(new CustomEvent("trigger_p2p_match"));
+              }}
+              className="bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg shadow border border-amber-300 transition active:scale-95 flex items-center gap-1 shrink-0 uppercase tracking-wide cursor-pointer"
+            >
+              <span>⚔️</span>
+              <span className="hidden lg:inline">Start P2P Match ($0.20 Bids)</span>
+              <span className="hidden sm:inline lg:hidden">Start P2P Match</span>
+              <span className="sm:hidden">Start Match</span>
             </button>
           </div>
         </div>

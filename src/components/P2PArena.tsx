@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
@@ -929,6 +930,18 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
   }, [autoNextCountdown, autoBattle]);
 
+  useEffect(() => {
+    const handleTriggerMatch = () => {
+      triggerMatchmakePipeline();
+    };
+    window.addEventListener("trigger_p2p_match", handleTriggerMatch);
+    return () => window.removeEventListener("trigger_p2p_match", handleTriggerMatch);
+  }, [triggerMatchmakePipeline]);
+
+  const reduxOnlineUsers = useSelector((state: any) => state.main?.onlineUsersCount || 0);
+  const activeArenaUsersCount = (arenaState?.king ? 1 : 0) + (arenaState?.challenger ? 1 : 0) + (arenaState?.queue?.length || 0);
+  const totalOnlineCount = Math.max(reduxOnlineUsers, arenaState?.onlineUsersCount || 0, activeArenaUsersCount, 1);
+
   return (
     <div className="flex flex-row w-full h-full min-h-screen bg-neutral-950 gap-0 overflow-x-hidden select-none relative font-sans antialiased text-white">
       
@@ -1006,6 +1019,53 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 minHeight: isFullscreen ? '42vh' : '220px',
               }}
             >
+              {/* Independent Floating Glassmorphic Control Icons on Right Side */}
+              <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+                <button
+                  onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+                  aria-label="Toggle Layout"
+                >
+                  <Columns size={16} />
+                </button>
+
+                <button
+                  onClick={() => setIsMuted(prev => !prev)}
+                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                    isMuted
+                      ? "bg-rose-600/90 hover:bg-rose-500 border-rose-400 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]"
+                      : "bg-blue-600/90 hover:bg-blue-500 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                  }`}
+                  title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+                  aria-label="Toggle Microphone"
+                >
+                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+
+                <button
+                  onClick={toggleFullscreen}
+                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                  aria-label="Toggle Fullscreen"
+                >
+                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+
+                <button
+                  onClick={() => setIsSidebarOpen(prev => !prev)}
+                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                    isSidebarOpen
+                      ? "bg-pink-600/90 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]"
+                      : "bg-zinc-950/60 border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white"
+                  }`}
+                  title="Toggle Arena Queue Sidebar"
+                  aria-label="Toggle Queue Sidebar"
+                >
+                  <Users size={16} />
+                </button>
+              </div>
+
               {/* Target Word Overlay */}
               <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
                 <div className="bg-amber-400/90 text-black px-4 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-pulse border border-amber-200 flex items-center gap-2">
@@ -1080,6 +1140,53 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 minHeight: isFullscreen ? '42vh' : '220px',
               }}
             >
+              {/* Independent Floating Glassmorphic Control Icons on Right Side */}
+              <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+                <button
+                  onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
+                  aria-label="Toggle Layout"
+                >
+                  <Columns size={16} />
+                </button>
+
+                <button
+                  onClick={() => setIsMuted(prev => !prev)}
+                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                    isMuted
+                      ? "bg-rose-600/90 hover:bg-rose-500 border-rose-400 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]"
+                      : "bg-blue-600/90 hover:bg-blue-500 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                  }`}
+                  title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+                  aria-label="Toggle Microphone"
+                >
+                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+
+                <button
+                  onClick={toggleFullscreen}
+                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                  aria-label="Toggle Fullscreen"
+                >
+                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+
+                <button
+                  onClick={() => setIsSidebarOpen(prev => !prev)}
+                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                    isSidebarOpen
+                      ? "bg-pink-600/90 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]"
+                      : "bg-zinc-950/60 border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white"
+                  }`}
+                  title="Toggle Arena Queue Sidebar"
+                  aria-label="Toggle Queue Sidebar"
+                >
+                  <Users size={16} />
+                </button>
+              </div>
+
               {/* Target Word Overlay */}
               <div className="absolute top-3 inset-x-0 z-20 pointer-events-none flex items-center justify-center px-2">
                 <div className="bg-amber-400/90 text-black px-4 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-pulse border border-amber-200 flex items-center gap-2">
@@ -1155,59 +1262,6 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         </div>
 
-        {/* 🛠️ CENTRAL FLOATING ACTION CONTROLS */}
-        <div className="my-3 flex justify-center z-30">
-          <div className="bg-zinc-950/80 border border-white/10 backdrop-blur-xl p-2 rounded-full flex items-center gap-3 shadow-2xl">
-            {/* Columns Layout Toggle */}
-            <button
-              onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-              className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:bg-white/10 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
-              title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
-              aria-label="Toggle Layout"
-            >
-              <Columns size={18} />
-            </button>
-
-            {/* Mic Mute Toggle */}
-            <button
-              onClick={() => setIsMuted(prev => !prev)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-all duration-200 active:scale-95 cursor-pointer ${
-                isMuted
-                  ? "bg-rose-600 hover:bg-rose-500 shadow-[0_0_20px_rgba(225,29,72,0.4)]"
-                  : "bg-blue-500 hover:bg-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.4)]"
-              }`}
-              title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
-              aria-label="Toggle Microphone Mute"
-            >
-              {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-
-            {/* Fullscreen Toggle */}
-            <button
-              onClick={toggleFullscreen}
-              className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:bg-white/10 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
-              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-              aria-label="Toggle Fullscreen"
-            >
-              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
-
-            {/* Sidebar Roster Access Button Toggle */}
-            <button
-              onClick={() => setIsSidebarOpen(prev => !prev)}
-              className={`w-11 h-11 rounded-full border flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer ${
-                isSidebarOpen
-                  ? "bg-pink-500 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)] scale-105"
-                  : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white"
-              }`}
-              title="Toggle Arena Queue Sidebar"
-              aria-label="Toggle Queue Sidebar"
-            >
-              <Users size={18} />
-            </button>
-          </div>
-        </div>
-
         {/* 🚀 MATCH CONTROL BUTTON (When inactive/complete) */}
         {(matchStatus === "INACTIVE" || matchStatus === "COMPLETE") && (
           <div className="mb-3">
@@ -1229,34 +1283,35 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         {/* 📋 LIVE ONLINE ARENA QUEUE ROSTER PANEL */}
         <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl">
-          <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-white/10">
-            <h4 className="text-xs font-extrabold text-zinc-200 uppercase tracking-wide flex items-center gap-2 m-0">
-              <Users size={16} className="text-pink-400" />
-              <span>Live Arena Queue Roster ({arenaState.queue.length + (arenaState.king ? 1 : 0) + (arenaState.challenger ? 1 : 0)} Players)</span>
+          <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-white/10 min-w-0">
+            <h4 className="text-xs sm:text-sm font-extrabold text-zinc-200 uppercase tracking-wide flex items-center gap-1.5 sm:gap-2 m-0 truncate min-w-0">
+              <Users size={16} className="text-pink-400 shrink-0" />
+              <span className="truncate">LIVE ARENA QUEUE ROSTER ({arenaState.queue.length + (arenaState.king ? 1 : 0) + (arenaState.challenger ? 1 : 0)} PLAYERS)</span>
             </h4>
-            <span className="text-[11px] text-zinc-400 font-semibold">
-              {arenaState.queue.length} in waiting queue
+            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-500/40 font-extrabold flex items-center gap-1.5 shadow whitespace-nowrap shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <span>{totalOnlineCount} Online</span>
             </span>
           </div>
 
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
             {/* Active King */}
             {arenaState.king && (
-              <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs">
-                <div className="flex items-center gap-2">
-                  <Crown size={16} className="text-amber-400" />
-                  <div>
-                    <span className="font-extrabold text-amber-300">
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Crown size={16} className="text-amber-400 shrink-0" />
+                  <div className="min-w-0 truncate">
+                    <span className="font-extrabold text-amber-300 truncate">
                       {arenaState.king.userName} {arenaState.king.userId === activeUserId ? "(YOU)" : ""}
                     </span>
-                    <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                    <span className="text-[10px] text-zinc-400 ml-2 font-mono hidden sm:inline">
                       {arenaState.king.walletAddress?.slice(0, 6)}...{arenaState.king.walletAddress?.slice(-4)}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-amber-500/40">
-                    REIGNING KING ({arenaState.king.consecutiveWins || 1} WINS)
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40 uppercase">
+                    KING ({arenaState.king.consecutiveWins || 1} WINS)
                   </span>
                   <span className="text-xs text-zinc-200 font-extrabold">
                     ${(arenaState.king.bidAmount || 0.20).toFixed(2)}
@@ -1267,21 +1322,21 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
             {/* Active Challenger */}
             {arenaState.challenger && (
-              <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs">
-                <div className="flex items-center gap-2">
-                  <Swords size={16} className="text-pink-400" />
-                  <div>
-                    <span className="font-extrabold text-rose-300">
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 bg-rose-500/10 border border-rose-500/40 backdrop-blur-md px-3 py-2 rounded-xl text-xs min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Swords size={16} className="text-pink-400 shrink-0" />
+                  <div className="min-w-0 truncate">
+                    <span className="font-extrabold text-rose-300 truncate">
                       {arenaState.challenger.userName} {arenaState.challenger.userId === activeUserId ? "(YOU)" : ""}
                     </span>
-                    <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                    <span className="text-[10px] text-zinc-400 ml-2 font-mono hidden sm:inline">
                       {arenaState.challenger.walletAddress?.slice(0, 6)}...{arenaState.challenger.walletAddress?.slice(-4)}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-500/40">
-                    ACTIVE CHALLENGER
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-rose-500/40 uppercase">
+                    CHALLENGER
                   </span>
                   <span className="text-xs text-zinc-200 font-extrabold">
                     ${(arenaState.challenger.bidAmount || 0.20).toFixed(2)}
@@ -1297,30 +1352,30 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 return (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border backdrop-blur-md transition ${
+                    className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs border backdrop-blur-md transition min-w-0 ${
                       qUser.userId === activeUserId
                         ? "bg-indigo-900/40 border-indigo-500/60 font-bold"
                         : "bg-white/5 border-white/10"
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-amber-400 min-w-[20px]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-extrabold text-amber-400 min-w-[20px] shrink-0">
                         #{idx + 1}
                       </span>
-                      <div>
-                        <span className={qUser.userId === activeUserId ? "text-indigo-300 font-extrabold" : "text-zinc-200"}>
+                      <div className="min-w-0 truncate">
+                        <span className={qUser.userId === activeUserId ? "text-indigo-300 font-extrabold truncate" : "text-zinc-200 truncate"}>
                           {qUser.userName} {qUser.userId === activeUserId ? "(YOU)" : ""}
                         </span>
-                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">
+                        <span className="text-[10px] text-zinc-400 ml-2 font-mono hidden sm:inline">
                           {qUser.walletAddress?.slice(0, 6)}...
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       {qUser.bidAmount > 0.20 && (
                         <span className="bg-purple-900/60 text-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-purple-500/40">
-                          ⚡ Priority Bid
+                          ⚡ Priority
                         </span>
                       )}
                       {isRegular && (
@@ -1337,8 +1392,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               })
             ) : (
               (!arenaState.king && !arenaState.challenger) && (
-                <div className="text-center py-3 text-xs text-zinc-400 font-medium">
-                  Queue is empty. Select your bet amount and click "Join Arena Queue" to play!
+                <div className="text-center py-5 px-3 bg-white/5 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center">
+                  <div className="text-2xl mb-1">💤</div>
+                  <div className="text-xs font-extrabold text-zinc-200">Queue is empty</div>
+                  <div className="text-[11px] text-zinc-400 max-w-xs text-center mt-1 leading-snug">
+                    Select your bid amount below and click "Join Arena Queue" to play!
+                  </div>
                 </div>
               )
             )}
@@ -1346,79 +1405,125 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
 
         {/* 💳 ARENA QUEUE & BID ACTION PANEL */}
-        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            
-            {/* Bid / Bet Amount Selector */}
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
-              <span className="text-xs font-extrabold text-zinc-200 uppercase tracking-wide shrink-0">
-                💰 <span className="hidden sm:inline">Bet / </span>Bid:
+        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl space-y-3">
+          
+          {/* Bid / Bet Amount Selector Header */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <span className="text-xs sm:text-sm font-extrabold text-zinc-200 uppercase tracking-wide flex items-center gap-1.5 truncate">
+              <span>💰</span>
+              <span>Select Bid / Stake Amount:</span>
+            </span>
+            {bidAmount > 0.20 && (
+              <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/40 animate-pulse whitespace-nowrap shrink-0">
+                ⚡ Priority Jump
               </span>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
-                {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => setBidAmount(amt)}
-                    className={`text-xs font-black px-3 py-1.5 rounded-xl border transition cursor-pointer shrink-0 whitespace-nowrap ${
-                      bidAmount === amt
-                        ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] scale-105"
-                        : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10"
-                    }`}
-                  >
-                    ${amt.toFixed(2)} <span className="hidden md:inline">{amt > 0.20 ? "⚡ Priority" : ""}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Queue Action Button */}
-            <div className="w-full sm:w-auto">
-              {myRole === 'QUEUED' ? (
-                <button
-                  onClick={handleLeaveArenaQueue}
-                  className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-4 py-2.5 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-2 animate-pulse"
-                >
-                  <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Leave</span>
-                </button>
-              ) : myRole === 'SPECTATOR' ? (
-                <button
-                  onClick={handleJoinArenaQueue}
-                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs px-5 py-2.5 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span>⚔️ JOIN QUEUE (${bidAmount.toFixed(2)})</span>
-                </button>
-              ) : (
-                <div className="w-full sm:w-auto bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2">
-                  <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Democratized 10-Play Rule Indicator Banner */}
-          <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 text-xs text-zinc-300">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-extrabold text-amber-300">👑 Winner Stays On</span>
+          {/* Bid Presets Grid - Fully Responsive across all screens */}
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 w-full">
+            {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
+              <button
+                key={amt}
+                onClick={() => setBidAmount(amt)}
+                className={`py-2 px-1 sm:px-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  bidAmount === amt
+                    ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] font-black scale-[1.02]"
+                    : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10 font-bold"
+                }`}
+              >
+                <span className="text-xs sm:text-sm tracking-tight">${amt.toFixed(2)}</span>
+                <span className="text-[9px] opacity-80 hidden sm:inline font-semibold">
+                  {amt === 0.20 ? "Standard" : "Priority"}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Queue Action Button */}
+          <div className="w-full pt-1">
+            {myRole === 'QUEUED' ? (
+              <button
+                onClick={handleLeaveArenaQueue}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black text-xs sm:text-sm py-3 px-4 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-2 animate-pulse uppercase tracking-wider"
+              >
+                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Click to Leave Queue</span>
+              </button>
+            ) : myRole === 'SPECTATOR' ? (
+              <button
+                onClick={handleJoinArenaQueue}
+                className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs sm:text-sm py-3 px-4 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+              >
+                <span>⚔️ JOIN ARENA QUEUE (${bidAmount.toFixed(2)})</span>
+              </button>
+            ) : (
+              <div className="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs sm:text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider">
+                <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ⚙️ BOTTOM ARENA CONTROLS & MATCH INFO PANEL */}
+        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl space-y-3">
+          
+          {/* Continuous Auto-Match Selector Toggle */}
+          {setAutoBattle && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-purple-950/40 border border-purple-500/30 p-2.5 sm:p-3 rounded-xl">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-2.5 h-2.5 rounded-full ${autoBattle ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
+                <div className="text-xs">
+                  <span className="font-extrabold text-purple-200">Continuous Auto-Match: </span>
+                  <span className={autoBattle ? "text-emerald-400 font-extrabold" : "text-amber-400 font-extrabold"}>
+                    {autoBattle ? "ACTIVE ⚡" : "PAUSED ⏸️"}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 ml-1.5 hidden sm:inline">
+                    (Auto-starts next round upon match conclusion)
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setAutoBattle(!autoBattle)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition shadow cursor-pointer shrink-0 flex items-center gap-1.5 border ${
+                  autoBattle
+                    ? "bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+                    : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-600"
+                }`}
+              >
+                <span>{autoBattle ? "⚡ Auto ON" : "⏸️ Auto OFF"}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Winner Stays On & Democratized 10-Play Rule Banner */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-zinc-300 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-extrabold text-amber-300 flex items-center gap-1">
+                <span>👑</span>
+                <span>Winner Stays On</span>
+              </span>
               <span className="text-zinc-500">•</span>
-              <span className="hidden sm:inline">Higher bids jump queue</span>
-              <span className="hidden sm:inline text-zinc-500">•</span>
               <span className="text-zinc-300 font-semibold">
                 Matches: <strong className="text-white">#{arenaState.matchCounter}</strong>
               </span>
+              <span className="text-zinc-500 hidden sm:inline">•</span>
+              <span className="text-zinc-400 text-[11px] hidden sm:inline">Higher bids jump queue</span>
             </div>
 
             <div className="flex items-center gap-1.5 text-xs">
               {arenaState.isDemocratizedTurn ? (
-                <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+                <span className="text-emerald-400 font-extrabold animate-pulse bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-500/40 text-[11px]">
                   ⚖️ MATCH #{arenaState.matchCounter} IS DEMOCRATIZED! Longest-waiting regular player turn!
                 </span>
               ) : (
-                <span className="text-zinc-400 font-medium">
+                <span className="text-zinc-400 font-medium text-[11px] bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
                   ⚖️ Regular Democratized Turn: <strong className="text-amber-300">in {10 - (arenaState.matchCounter % 10)} plays</strong>
                 </span>
               )}
             </div>
           </div>
+
         </div>
 
         {/* 📡 LIVE ARENA TRANSMISSION LOG */}
@@ -1439,9 +1544,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         
         {/* Sidebar Top Controls Row */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-zinc-950">
-          <div className="flex items-center gap-2.5">
-            <LayoutGrid size={18} className="text-pink-400" />
+          <div className="flex items-center gap-2">
+            <LayoutGrid size={18} className="text-pink-400 shrink-0" />
             <h2 className="text-base sm:text-lg font-bold tracking-tight text-white m-0">Arena Roster</h2>
+            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/40 font-extrabold flex items-center gap-1.5 shadow shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>{totalOnlineCount} Online</span>
+            </span>
           </div>
           <button 
             onClick={() => setIsSidebarOpen(false)}

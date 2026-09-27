@@ -9,6 +9,7 @@ import { TimelinePage } from "./pages/TimelinePage";
 import { WalletConnectModal } from "./components/WalletConnectModal";
 import { ArcOnrampWidget } from "./components/ArcOnrampWidget";
 import { ArcAppKitModal } from "./components/ArcAppKitModal";
+import { CombinedChainSelector } from "./components/CombinedChainSelector";
 import { TrendTicker } from "./components/TrendTicker";
 import {
   MdConfirmationNumber,
@@ -126,7 +127,7 @@ export function App() {
     <AppLayout>
       <div className="w-full h-full flex flex-col bg-[#07012c] text-white font-sans overflow-hidden">
         {/* Top Header Navigation */}
-        <header className="w-full bg-[#110c38]/95 border-b border-[#644af1]/30 px-1.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between shrink-0 shadow-lg z-20 gap-1 sm:gap-2">
+        <header className="w-full bg-[#110c38] border-b border-[#644af1]/30 px-1.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between shrink-0 shadow-lg z-50 relative overflow-visible gap-1 sm:gap-2">
           <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
             {/* Top Left Burger Menu */}
             <BurgerMenu
@@ -157,44 +158,15 @@ export function App() {
             </div>
           </div>
 
-          {/* Network & Environment Selector Dropdowns (ARC/Base & Mainnet/Testnet) */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 my-auto">
-            {/* Chain Selector: ARC / Base */}
-            <select
-              value={selectedChain}
-              onChange={(e) => {
-                const val = e.target.value as 'base' | 'arc';
-                setSelectedChain(val);
-                if (userSession) {
-                  const updated = { ...userSession, network: val };
-                  setUserSession(updated);
-                  try { localStorage.setItem("facebet_session", JSON.stringify(updated)); } catch {}
-                }
-              }}
-              className="bg-[#1e155b] hover:bg-[#281c78] text-white font-extrabold text-[10px] sm:text-xs py-0.5 sm:py-1 px-1 sm:px-2 rounded-lg border border-purple-500/50 outline-none cursor-pointer shadow transition shrink-0"
-              aria-label="Select Blockchain Network"
-            >
-              <option value="base" className="bg-[#110c38] text-white font-bold">🔵 Base</option>
-              <option value="arc" className="bg-[#110c38] text-white font-bold">⚡ ARC</option>
-            </select>
-
-            {/* Environment Selector: Mainnet / Testnet */}
-            <select
-              value={selectedEnv}
-              onChange={(e) => {
-                const val = e.target.value as 'mainnet' | 'testnet';
-                setSelectedEnv(val);
-                if (typeof localStorage !== "undefined") {
-                  localStorage.setItem("facebet_base_testnet", val === 'testnet' ? "true" : "false");
-                }
-              }}
-              className="bg-[#1e155b] hover:bg-[#281c78] text-amber-300 font-extrabold text-[10px] sm:text-xs py-0.5 sm:py-1 px-1 sm:px-2 rounded-lg border border-amber-500/50 outline-none cursor-pointer shadow transition shrink-0"
-              aria-label="Select Environment"
-            >
-              <option value="mainnet" className="bg-[#110c38] text-emerald-400 font-bold">🟢 Mainnet</option>
-              <option value="testnet" className="bg-[#110c38] text-amber-300 font-bold">🟡 Testnet</option>
-            </select>
-          </div>
+          {/* Combined Chain & Network Environment Selector Dropdown */}
+          <CombinedChainSelector
+            selectedChain={selectedChain}
+            setSelectedChain={setSelectedChain}
+            selectedEnv={selectedEnv}
+            setSelectedEnv={setSelectedEnv}
+            userSession={userSession}
+            setUserSession={setUserSession}
+          />
 
           <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
 
