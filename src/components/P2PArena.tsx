@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X } from 'lucide-react';
+import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
@@ -91,6 +91,42 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [areControlsVisible, setAreControlsVisible] = useState<boolean>(true);
+  const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetAutoHideTimer = useCallback(() => {
+    setAreControlsVisible(true);
+    if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    if (isFullscreen) {
+      autoHideTimerRef.current = setTimeout(() => {
+        setAreControlsVisible(false);
+      }, 2000);
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      resetAutoHideTimer();
+    } else {
+      setAreControlsVisible(true);
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    }
+    return () => {
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    };
+  }, [isFullscreen, resetAutoHideTimer]);
+
+  const handleScreenClickToggleControls = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, select, a')) return;
+    if (!isFullscreen) return;
+
+    if (areControlsVisible) {
+      setAreControlsVisible(false);
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    } else {
+      resetAutoHideTimer();
+    }
+  };
 
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2' | 'QUEUED' | 'SPECTATOR'>('SPECTATOR');
@@ -489,6 +525,38 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     setMyRole('SPECTATOR');
     setMyQueuePosition(null);
     setChatLog(prev => [...prev, "🚪 Left the Arena Queue."]);
+  };
+
+  const handleQuitMatchToSpectator = () => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        event: "LEAVE_ARENA_QUEUE",
+        userId: activeUserId
+      }));
+    }
+    if (activeCallRef.current) {
+      try { activeCallRef.current.close(); } catch (e) {}
+      activeCallRef.current = null;
+    }
+    if (activeMediaStreamRef.current) {
+      try { activeMediaStreamRef.current.getTracks().forEach(t => t.stop()); } catch (e) {}
+      activeMediaStreamRef.current = null;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current = null;
+    }
+    if (p1VideoRef.current) p1VideoRef.current.srcObject = null;
+    if (p2VideoRef.current) p2VideoRef.current.srcObject = null;
+
+    setMyRole('SPECTATOR');
+    setMyQueuePosition(null);
+    setIsDualTestMode(false);
+    setHasRemoteStream(false);
+    setMatchStatus('INACTIVE');
+    setWinnerId(null);
+    setVerdictReason("");
+    setCountdown(null);
+    setChatLog(prev => [...prev, "🚪 Exited match. Returned to Spectator / Watcher view."]);
   };
 
   // ─── ROLE-GATED CAMERA ACQUISITION ───────────────────────────────────────────
@@ -948,9 +1016,11 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       {/* 🌟 MAIN GAME ARENA WRAPPER FRAME */}
       <div 
         ref={containerRef}
+        onClick={handleScreenClickToggleControls}
+        onMouseMove={resetAutoHideTimer}
         className={`flex flex-col flex-1 h-full transition-all duration-500 ease-out relative p-3 sm:p-5 ${
           isFullscreen 
-            ? "fixed inset-0 z-40 bg-neutral-950 p-3 sm:p-5 flex flex-col justify-between overflow-y-auto w-screen h-screen" 
+            ? "fixed inset-0 z-40 bg-neutral-950 p-3 sm:p-5 flex flex-col justify-between overflow-y-auto w-screen h-screen cursor-pointer" 
             : isSidebarOpen ? 'w-full md:w-3/4' : 'w-full'
         }`}
       >
@@ -1020,19 +1090,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               }}
             >
               {/* Independent Floating Glassmorphic Control Icons on Right Side */}
-              <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+              <div className={`absolute top-2 sm:top-3 right-2 sm:right-3 z-30 flex flex-col items-end gap-1.5 overflow-visible select-none transition-all duration-300 ease-in-out ${
+                isFullscreen && !areControlsVisible 
+                  ? "opacity-0 scale-95 pointer-events-none" 
+                  : "opacity-100 scale-100 pointer-events-auto"
+              }`}>
                 <button
                   onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-zinc-950/80 border border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer shrink-0"
                   title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
                   aria-label="Toggle Layout"
                 >
-                  <Columns size={16} />
+                  <Columns size={15} />
                 </button>
 
                 <button
                   onClick={() => setIsMuted(prev => !prev)}
-                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
                     isMuted
                       ? "bg-rose-600/90 hover:bg-rose-500 border-rose-400 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]"
                       : "bg-blue-600/90 hover:bg-blue-500 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]"
@@ -1040,29 +1114,39 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                   title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
                   aria-label="Toggle Microphone"
                 >
-                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+                  {isMuted ? <MicOff size={15} /> : <Mic size={15} />}
                 </button>
 
                 <button
                   onClick={toggleFullscreen}
-                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-zinc-950/80 border border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer shrink-0"
                   title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
                   aria-label="Toggle Fullscreen"
                 >
-                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 </button>
 
                 <button
                   onClick={() => setIsSidebarOpen(prev => !prev)}
-                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
                     isSidebarOpen
                       ? "bg-pink-600/90 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]"
-                      : "bg-zinc-950/60 border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white"
+                      : "bg-zinc-950/80 border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white"
                   }`}
                   title="Toggle Arena Queue Sidebar"
                   aria-label="Toggle Queue Sidebar"
                 >
-                  <Users size={16} />
+                  <Users size={15} />
+                </button>
+
+                {/* Quit / Exit Button - Vertically Aligned Glassmorphic Icon Only */}
+                <button
+                  onClick={handleQuitMatchToSpectator}
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-red-600/90 hover:bg-red-500 border border-red-400 text-white backdrop-blur-xl flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] transition active:scale-95 cursor-pointer shrink-0"
+                  title="Quit / Exit Match and Return to Watchers View"
+                  aria-label="Quit Match"
+                >
+                  <LogOut size={15} />
                 </button>
               </div>
 
@@ -1141,19 +1225,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               }}
             >
               {/* Independent Floating Glassmorphic Control Icons on Right Side */}
-              <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+              <div className={`absolute top-2 sm:top-3 right-2 sm:right-3 z-30 flex flex-col items-end gap-1.5 overflow-visible select-none transition-all duration-300 ease-in-out ${
+                isFullscreen && !areControlsVisible 
+                  ? "opacity-0 scale-95 pointer-events-none" 
+                  : "opacity-100 scale-100 pointer-events-auto"
+              }`}>
                 <button
                   onClick={() => setLayoutMode(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-zinc-950/80 border border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer shrink-0"
                   title={layoutMode === 'horizontal' ? 'Switch to Vertical Stack' : 'Switch to Side-by-Side'}
                   aria-label="Toggle Layout"
                 >
-                  <Columns size={16} />
+                  <Columns size={15} />
                 </button>
 
                 <button
                   onClick={() => setIsMuted(prev => !prev)}
-                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
                     isMuted
                       ? "bg-rose-600/90 hover:bg-rose-500 border-rose-400 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]"
                       : "bg-blue-600/90 hover:bg-blue-500 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]"
@@ -1161,29 +1249,39 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                   title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
                   aria-label="Toggle Microphone"
                 >
-                  {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+                  {isMuted ? <MicOff size={15} /> : <Mic size={15} />}
                 </button>
 
                 <button
                   onClick={toggleFullscreen}
-                  className="w-9 h-9 rounded-full bg-zinc-950/60 border border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-zinc-950/80 border border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white backdrop-blur-xl flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer shrink-0"
                   title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
                   aria-label="Toggle Fullscreen"
                 >
-                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 </button>
 
                 <button
                   onClick={() => setIsSidebarOpen(prev => !prev)}
-                  className={`w-9 h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
                     isSidebarOpen
                       ? "bg-pink-600/90 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]"
-                      : "bg-zinc-950/60 border-white/20 hover:bg-zinc-900/90 hover:border-white/40 text-white"
+                      : "bg-zinc-950/80 border-white/20 hover:bg-zinc-900 hover:border-white/40 text-white"
                   }`}
                   title="Toggle Arena Queue Sidebar"
                   aria-label="Toggle Queue Sidebar"
                 >
-                  <Users size={16} />
+                  <Users size={15} />
+                </button>
+
+                {/* Quit / Exit Button - Vertically Aligned Glassmorphic Icon Only */}
+                <button
+                  onClick={handleQuitMatchToSpectator}
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-red-600/90 hover:bg-red-500 border border-red-400 text-white backdrop-blur-xl flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] transition active:scale-95 cursor-pointer shrink-0"
+                  title="Quit / Exit Match and Return to Watchers View"
+                  aria-label="Quit Match"
+                >
+                  <LogOut size={15} />
                 </button>
               </div>
 
