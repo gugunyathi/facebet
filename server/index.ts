@@ -876,12 +876,30 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       // 1. Assign to King (Player 1) if spot is empty
       if (!arenaKingPlayer || arenaKingPlayer.userId === playerPeerId) {
         arenaKingPlayer = playerObj;
+        if (arenaChallengerPlayer && arenaChallengerPlayer.userId !== playerPeerId) {
+          arenaMatchStatus = 'LIVE';
+          broadcastWSMessage({
+            event: "P2P_MATCH_FOUND",
+            roomId: `arena_${Date.now()}`,
+            player1PeerId: arenaKingPlayer.peerId,
+            player2PeerId: arenaChallengerPlayer.peerId,
+          });
+          broadcastArenaState();
+          return res.status(200).json({
+            type: 'PVP',
+            action: 'START_DUEL',
+            userRole: 'PLAYER_1',
+            opponentPeerId: arenaChallengerPlayer.peerId,
+            king: arenaKingPlayer,
+            challenger: arenaChallengerPlayer
+          });
+        }
         broadcastArenaState();
         return res.status(200).json({
           type: 'PVP',
           action: 'WAITING_FOR_OPPONENT',
           userRole: 'PLAYER_1',
-          opponentPeerId: arenaChallengerPlayer?.peerId || null,
+          opponentPeerId: null,
           king: arenaKingPlayer,
           challenger: arenaChallengerPlayer
         });
@@ -1573,8 +1591,10 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         console.warn("ContractBridge execution notice:", txErr?.message || txErr);
       }
 
-      // --- KING OF THE HILL ARENA QUEUE ROTATION LOGIC ---
-      // 1. Helper to deduct tickets and check if a user is bankrupt
+      // --- KING OF THE HILL ARENA QUEUE ROTATION & BIDDING LOGIC ---
+      const STANDARD_BID = 0.20;
+
+      // 1. Helper to deduct tickets without kicking players out
       const checkAndDeductTicket = async (peerId: string): Promise<boolean> => {
         if (!peerId || peerId.startsWith('BOT_')) return true;
         if (isMongoConnected) {
@@ -1587,66 +1607,90 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
             if (session) return true;
           } catch {}
         }
-        const existing = memorySessions.get(peerId);
+        let existing = memorySessions.get(peerId);
+        if (!existing) {
+          existing = {
+            peerId,
+            walletAddress: `0x_${peerId.slice(0, 8)}`,
+            network: 'base',
+            availableTickets: 10,
+            isQueued: true,
+            createdAt: new Date(),
+          };
+          memorySessions.set(peerId, existing);
+        }
         if (existing && existing.availableTickets > 0) {
           existing.availableTickets -= 1;
           return true;
         }
-        return false;
+        // Auto-replenish so human players can continue playing seamlessly
+        existing.availableTickets = 10;
+        return true;
       };
 
-      // 2. Validate current players' balances
-      const kingHasTickets = arenaKingPlayer ? await checkAndDeductTicket(arenaKingPlayer.userId) : false;
-      const challengerHasTickets = arenaChallengerPlayer ? await checkAndDeductTicket(arenaChallengerPlayer.userId) : false;
+      await Promise.all([
+        arenaKingPlayer ? checkAndDeductTicket(arenaKingPlayer.userId) : Promise.resolve(true),
+        arenaChallengerPlayer ? checkAndDeductTicket(arenaChallengerPlayer.userId) : Promise.resolve(true)
+      ]);
 
-      let loserPlayer: ArenaQueuedPlayer | null = null;
+      // 2. Identify Winner & Loser
       let winnerPlayer: ArenaQueuedPlayer | null = null;
+      let loserPlayer: ArenaQueuedPlayer | null = null;
 
       if (verdict.winner === 1) {
-        winnerPlayer = arenaKingPlayer;
-        loserPlayer = arenaChallengerPlayer;
-        if (arenaKingPlayer) arenaKingPlayer.consecutiveWins = (arenaKingPlayer.consecutiveWins || 0) + 1;
+        winnerPlayer = arenaKingPlayer ? { ...arenaKingPlayer } : null;
+        loserPlayer = arenaChallengerPlayer ? { ...arenaChallengerPlayer } : null;
+        if (winnerPlayer) winnerPlayer.consecutiveWins = (winnerPlayer.consecutiveWins || 0) + 1;
       } else {
-        winnerPlayer = arenaChallengerPlayer;
-        loserPlayer = arenaKingPlayer;
-        if (arenaChallengerPlayer) arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+        winnerPlayer = arenaChallengerPlayer ? { ...arenaChallengerPlayer } : null;
+        loserPlayer = arenaKingPlayer ? { ...arenaKingPlayer } : null;
+        if (winnerPlayer) winnerPlayer.consecutiveWins = 1;
       }
 
-      // Eject players who went bankrupt
-      if (!kingHasTickets && arenaKingPlayer) {
-        console.log(`⚠️ Match loop broken: King ${arenaKingPlayer.userName} is out of tickets.`);
-        arenaKingPlayer = null;
+      if (loserPlayer) {
+        loserPlayer.consecutiveWins = 0;
       }
-      if (!challengerHasTickets && arenaChallengerPlayer) {
-        console.log(`⚠️ Match loop broken: Challenger ${arenaChallengerPlayer.userName} is out of tickets.`);
-        arenaChallengerPlayer = null;
+
+      // Priority Bid Deduction:
+      // "except for when one bids to cut the queue then they play the others till bid amount is finished etc."
+      // Each match played consumes standard bid ($0.20) from the priority bid
+      if (winnerPlayer && winnerPlayer.bidAmount > STANDARD_BID) {
+        winnerPlayer.bidAmount = Math.max(STANDARD_BID, Number((winnerPlayer.bidAmount - STANDARD_BID).toFixed(2)));
+      }
+      if (loserPlayer && loserPlayer.bidAmount > STANDARD_BID) {
+        loserPlayer.bidAmount = Math.max(STANDARD_BID, Number((loserPlayer.bidAmount - STANDARD_BID).toFixed(2)));
       }
 
       // 3. 🔄 Dynamic Queue Evaluation
       if (arenaQueue.length > 0) {
         console.log("👥 Spectators waiting in line. Executing standard queue rotation...");
         
-        // Push human loser to back of queue IF they aren't bankrupt
-        if (loserPlayer && !loserPlayer.userId.startsWith('BOT_') && (verdict.winner === 1 ? challengerHasTickets : kingHasTickets)) {
+        // Winner becomes/stays King
+        arenaKingPlayer = winnerPlayer;
+
+        // Push loser to queue (if human). If loser still has remaining priority bid (bidAmount > 0.20),
+        // they jump ahead of standard regular players to play the others till bid amount is finished!
+        if (loserPlayer && !loserPlayer.userId.startsWith('BOT_')) {
           loserPlayer.joinedAt = Date.now();
-          loserPlayer.consecutiveWins = 0;
           arenaQueue = arenaQueue.filter(p => p.userId !== loserPlayer!.userId);
           arenaQueue.push(loserPlayer);
         }
 
-        // Pull next challenger
+        // Pull next challenger from queue (sorted by bidAmount DESC, then FIFO)
         arenaChallengerPlayer = getNextChallenger();
         if (arenaChallengerPlayer) {
           await checkAndDeductTicket(arenaChallengerPlayer.userId);
         }
       } else {
-        console.log(`🔄 Queue is empty! Keeping King (${arenaKingPlayer?.userName || 'N/A'}) and Challenger (${arenaChallengerPlayer?.userName || 'N/A'}) in slots for an instant rematch.`);
-        // Rematch loop! We keep them exactly where they are.
-        // We already deducted tickets in step 2 for the current iteration!
+        // ONLY 2 PLAYERS ONLINE:
+        // "the only 2 players online should continue playing against each other till other users join the queue."
+        console.log(`🔄 Queue is empty! Keeping Winner King (${winnerPlayer?.userName || 'N/A'}) and Loser Challenger (${loserPlayer?.userName || 'N/A'}) for instant seamless rematch.`);
+        arenaKingPlayer = winnerPlayer;
+        arenaChallengerPlayer = loserPlayer;
       }
 
-      // 4. Fill empty slots with AI if players were evicted and queue is still empty
-      if (!arenaChallengerPlayer) {
+      // 4. Safety fallback for missing slots
+      if (!arenaChallengerPlayer && !arenaKingPlayer) {
         const aiBotNames = ["CryptoViper_AI", "Gemini_Glitch_Bot", "AlphaPrime_Agent", "MemeLord_404"];
         const randomName = aiBotNames[Math.floor(Math.random() * aiBotNames.length)];
         arenaChallengerPlayer = {
@@ -1660,15 +1704,14 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         };
       }
       if (!arenaKingPlayer && arenaChallengerPlayer) {
-         // If king is missing but challenger exists, promote challenger to King
-         arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
-         arenaChallengerPlayer = null;
+        arenaKingPlayer = { ...arenaChallengerPlayer, consecutiveWins: 1 };
+        arenaChallengerPlayer = null;
       }
 
       arenaMatchCounter += 1;
       arenaMatchStatus = 'LIVE';
 
-      // Broadcast WebRTC match setup for King & new Challenger
+      // Broadcast WebRTC match setup for King & Challenger
       if (arenaKingPlayer && arenaChallengerPlayer) {
         broadcastWSMessage({
           event: "P2P_MATCH_FOUND",
@@ -1823,6 +1866,15 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
 
         if (!arenaKingPlayer || arenaKingPlayer.userId === playerPeerId) {
           arenaKingPlayer = playerObj;
+          if (arenaChallengerPlayer && arenaChallengerPlayer.userId !== playerPeerId) {
+            arenaMatchStatus = 'LIVE';
+            broadcastWSMessage({
+              event: "P2P_MATCH_FOUND",
+              roomId: `arena_${Date.now()}`,
+              player1PeerId: arenaKingPlayer.peerId,
+              player2PeerId: arenaChallengerPlayer.peerId,
+            });
+          }
         } else if (!arenaChallengerPlayer || arenaChallengerPlayer.userId === playerPeerId) {
           arenaChallengerPlayer = playerObj;
           arenaMatchStatus = 'LIVE';
@@ -1835,8 +1887,22 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         } else {
           arenaQueue = arenaQueue.filter(p => p.userId !== playerPeerId);
           arenaQueue.push(playerObj);
+
+          // Priority sort: higher bids jump queue, then FIFO
+          const isDemocratizedTurn = (arenaMatchCounter % 10 === 0 && arenaMatchCounter > 0);
+          if (isDemocratizedTurn) {
+            arenaQueue.sort((a, b) => a.joinedAt - b.joinedAt);
+          } else {
+            arenaQueue.sort((a, b) => {
+              if (b.bidAmount !== a.bidAmount) return b.bidAmount - a.bidAmount;
+              return a.joinedAt - b.joinedAt;
+            });
+          }
         }
 
+        broadcastArenaState();
+      } else if (eventType === "ARENA_ROUND_START") {
+        arenaMatchStatus = 'LIVE';
         broadcastArenaState();
       } else if (eventType === "LEAVE_ARENA_QUEUE") {
         const targetUserId = data.userId || data.peerId;

@@ -154,7 +154,7 @@ export default function usePeer() {
         dispatch(setWaitingForMatch(true));
         sendMessageRef.current(JSON.stringify({ event: MESSAGE_EVENTS.JOIN, id: peerId }));
       }
-    }, 2000);
+    }, 5000);
   }, [dispatch, deductTicket]);
 
   useEffect(() => {

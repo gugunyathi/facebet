@@ -291,7 +291,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
             data.win ? "🏆 VICTORY DECLARED BY GEMINI AI JUDGE! Jackpot credits granted." : "💀 AI BOSS PREVAILS IN THIS ROUND."
           ]);
           if (autoBattle) {
-            setAutoNextCountdown(3);
+            setAutoNextCountdown(5);
           }
         })
         .catch(() => {
@@ -300,7 +300,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
             reason: "Gemini AI evaluated your expression as 100% Web3 compliant. Jackpot pool shared!"
           });
           if (autoBattle) {
-            setAutoNextCountdown(3);
+            setAutoNextCountdown(5);
           }
         });
     }

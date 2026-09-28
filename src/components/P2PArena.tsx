@@ -450,12 +450,20 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             if (activeUserId === player1PeerId && player2PeerId) {
               setMyRole('PLAYER_1');
               setGameMode('PVP');
-              setChatLog(prev => [...prev, "🔵 Player 1 Seat Claimed! Waiting for challenger to arrive..."]);
-              // King auto-dials challenger via arenaState.challenger useEffect
+              setWinnerId(null);
+              setVerdictReason("");
+              setMatchStatus("LIVE");
+              setCountdown(10);
+              setChatLog(prev => [...prev, "🔵 Player 1 Seat Claimed! Match LIVE."]);
+              // King auto-dials challenger via arenaState.challenger useEffect if new
             } else if (activeUserId === player2PeerId && player1PeerId) {
               setMyRole('PLAYER_2');
               setGameMode('PVP');
-              setChatLog(prev => [...prev, "🔴 Player 2 Seat Claimed! Listening for king's call..."]);
+              setWinnerId(null);
+              setVerdictReason("");
+              setMatchStatus("LIVE");
+              setCountdown(10);
+              setChatLog(prev => [...prev, "🔴 Player 2 Seat Claimed! Match LIVE."]);
               // Challenger answers via the inbound call handler useEffect
             }
           }
@@ -842,11 +850,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     }
 
     if (!isDualTestMode) {
-      // Clear streams via new dynamic refs
-      if (p1VideoRef.current) p1VideoRef.current.srcObject = null;
-      if (p2VideoRef.current) p2VideoRef.current.srcObject = null;
-      remoteStreamRef.current = null;
-      setHasRemoteStream(false);
+      // Clear streams via new dynamic refs only if no active call
+      if (!activeCallRef.current) {
+        if (p1VideoRef.current) p1VideoRef.current.srcObject = null;
+        if (p2VideoRef.current) p2VideoRef.current.srcObject = null;
+        remoteStreamRef.current = null;
+        setHasRemoteStream(false);
+      }
     }
 
     setMatchStatus("QUEUEING");
@@ -967,7 +977,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
             data.txHash ? `🔗 Base On-Chain Payout Tx: ${data.txHash}` : "✅ Payout Dispatched on Base Sepolia!"
           ]);
           if (autoBattle) {
-            setAutoNextCountdown(3);
+            setAutoNextCountdown(5);
           }
         }
       } catch (err) {
@@ -976,13 +986,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         setVerdictReason("Gemini AI evaluated Player 1 facial expression as 100% Web3 compliant.");
         setMatchStatus("COMPLETE");
         if (autoBattle) {
-          setAutoNextCountdown(3);
+          setAutoNextCountdown(5);
         }
       }
     }
   };
 
-  // Continuous Auto-Next Battle Loop Effect
+  // Continuous Auto-Next Battle Loop Effect (Reduced delay to 5s for fast seamless matches)
   useEffect(() => {
     if (autoNextCountdown && autoNextCountdown > 0) {
       const timer = setTimeout(() => {
@@ -992,11 +1002,45 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     } else if (autoNextCountdown === 0) {
       setAutoNextCountdown(null);
       if (autoBattle) {
-        setChatLog(prev => [...prev, "⚡ AUTO BATTLE: Automatically searching queue for next player match..."]);
-        triggerMatchmakePipeline();
+        // Seamlessly continue playing against each other if 2 players are online
+        const hasOpponent = (myRole === 'PLAYER_1' && arenaState.challenger) || (myRole === 'PLAYER_2' && arenaState.king);
+        if (hasOpponent) {
+          setWinnerId(null);
+          setVerdictReason("");
+          setMatchStatus("LIVE");
+          setCountdown(10);
+          setChatLog(prev => [...prev, "⚡ NEXT BATTLE LIVE! 10s Battle Commenced!"]);
+
+          // Ensure King connects to challenger if challenger peer updated
+          if (myRole === 'PLAYER_1' && activePeer && arenaState.challenger) {
+            const challengerPeerId = arenaState.challenger.peerId;
+            if (activeCallRef.current?.peer !== challengerPeerId) {
+              const localStream = activeMediaStreamRef.current;
+              if (localStream) {
+                const call = activePeer.call(challengerPeerId, localStream);
+                activeCallRef.current = call;
+                call.on('stream', (remoteStream: MediaStream) => {
+                  remoteStreamRef.current = remoteStream;
+                  setHasRemoteStream(true);
+                  handleStreamMapping();
+                });
+              }
+            }
+          }
+
+          if (socketRef.current?.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify({
+              event: "ARENA_ROUND_START",
+              userId: activeUserId
+            }));
+          }
+        } else {
+          setChatLog(prev => [...prev, "⚡ AUTO BATTLE: Automatically searching queue for next player match..."]);
+          triggerMatchmakePipeline();
+        }
       }
     }
-  }, [autoNextCountdown, autoBattle]);
+  }, [autoNextCountdown, autoBattle, myRole, arenaState.challenger, arenaState.king, activePeer, handleStreamMapping, activeUserId]);
 
   useEffect(() => {
     const handleTriggerMatch = () => {
