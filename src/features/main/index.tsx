@@ -13,6 +13,7 @@ interface MainProps {
   onRequireAuth: () => void;
   onAuthSuccess: (session: any) => void;
   onBuyTicketsSuccess: (tickets: number) => void;
+  onGoToHome?: () => void;
   autoBattle: boolean;
   setAutoBattle: React.Dispatch<React.SetStateAction<boolean>>;
   videoDevices?: MediaDeviceInfo[];
@@ -29,6 +30,7 @@ const Main: React.FC<MainProps> = ({
   onRequireAuth,
   onAuthSuccess,
   onBuyTicketsSuccess,
+  onGoToHome,
   autoBattle,
   setAutoBattle,
   videoDevices,
@@ -218,6 +220,7 @@ const Main: React.FC<MainProps> = ({
                 userSession={userSession}
                 onRequireAuth={onRequireAuth}
                 onBuyTickets={handleBasePay}
+                onGoToHome={onGoToHome}
                 autoBattle={autoBattle}
                 setAutoBattle={setAutoBattle}
                 videoDevices={videoDevices}
@@ -231,6 +234,7 @@ const Main: React.FC<MainProps> = ({
                 userSession={userSession}
                 onRequireAuth={onRequireAuth}
                 onBuyTickets={handleBasePay}
+                onGoToHome={onGoToHome}
                 autoBattle={autoBattle}
                 setAutoBattle={setAutoBattle}
                 videoDevices={videoDevices}

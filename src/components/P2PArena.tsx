@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut } from 'lucide-react';
+import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut, Home } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer, getBrowserClientId } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
@@ -11,6 +11,7 @@ interface P2PArenaProps {
   userSession?: any;
   onRequireAuth?: () => void;
   onBuyTickets?: () => void;
+  onGoToHome?: () => void;
   autoBattle?: boolean;
   setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
   videoDevices?: MediaDeviceInfo[];
@@ -50,6 +51,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   userSession,
   onRequireAuth,
   onBuyTickets,
+  onGoToHome,
   autoBattle = true,
   setAutoBattle,
   videoDevices: propsVideoDevices,
@@ -1198,6 +1200,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 >
                   <LogOut size={15} />
                 </button>
+
+                {/* Independent Floating Home Icon Button below Quit / Exit */}
+                <button
+                  onClick={() => {
+                    if (onGoToHome) {
+                      onGoToHome();
+                    } else if (typeof window !== "undefined") {
+                      window.history.pushState(null, '', '/');
+                      window.location.href = '/';
+                    }
+                  }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-tr from-purple-700/90 to-indigo-600/90 hover:from-purple-600 hover:to-indigo-500 border border-purple-400/60 text-white backdrop-blur-xl flex items-center justify-center shadow-[0_0_15px_rgba(147,51,234,0.4)] hover:shadow-[0_0_20px_rgba(147,51,234,0.7)] transition active:scale-95 cursor-pointer shrink-0"
+                  title="Return to Home / Landing Page"
+                  aria-label="Home"
+                >
+                  <Home size={15} />
+                </button>
               </div>
 
               {/* Target Word Overlay */}
@@ -1332,6 +1351,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                   aria-label="Quit Match"
                 >
                   <LogOut size={15} />
+                </button>
+
+                {/* Independent Floating Home Icon Button below Quit / Exit */}
+                <button
+                  onClick={() => {
+                    if (onGoToHome) {
+                      onGoToHome();
+                    } else if (typeof window !== "undefined") {
+                      window.history.pushState(null, '', '/');
+                      window.location.href = '/';
+                    }
+                  }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-tr from-purple-700/90 to-indigo-600/90 hover:from-purple-600 hover:to-indigo-500 border border-purple-400/60 text-white backdrop-blur-xl flex items-center justify-center shadow-[0_0_15px_rgba(147,51,234,0.4)] hover:shadow-[0_0_20px_rgba(147,51,234,0.7)] transition active:scale-95 cursor-pointer shrink-0"
+                  title="Return to Home / Landing Page"
+                  aria-label="Home"
+                >
+                  <Home size={15} />
                 </button>
               </div>
 

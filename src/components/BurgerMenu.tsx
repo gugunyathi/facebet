@@ -14,6 +14,7 @@ import {
   MdCreditCard,
 } from "react-icons/md";
 import { UserSessionData } from "./WalletAuth";
+import { FacebetLogo } from "./FacebetLogo";
 
 interface BurgerMenuProps {
   activePage: "arena" | "about" | "settings" | "timeline";
@@ -111,12 +112,12 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             {/* Drawer Header */}
         <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#130d42] shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-gradient-to-tr from-yellow-400 via-amber-500 to-purple-600 rounded-xl">
-              <MdStars className="w-5 h-5 text-black" />
+            <div className="p-1.5 bg-[#1c1257] border border-purple-500/40 rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.35)] flex items-center justify-center">
+              <FacebetLogo className="w-6 h-6" />
             </div>
             <div>
               <h2 className="font-extrabold text-base tracking-wide bg-gradient-to-r from-yellow-300 via-amber-400 to-purple-300 bg-clip-text text-transparent">
-                FACE BET
+                FACEBET
               </h2>
               <p className="text-[10px] text-gray-300">Base & ARC Web3 Navigation</p>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Home } from 'lucide-react';
 import { VideoProvider, API_URL } from '@/utils/constants';
 import { capturePlayerFrame } from '@/services/videoCapture';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
@@ -10,6 +10,7 @@ interface DuelModuleProps {
   userSession?: any;
   onRequireAuth?: () => void;
   onBuyTickets?: () => void;
+  onGoToHome?: () => void;
   autoBattle?: boolean;
   setAutoBattle?: React.Dispatch<React.SetStateAction<boolean>>;
   videoDevices?: MediaDeviceInfo[];
@@ -23,6 +24,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   userSession,
   onRequireAuth,
   onBuyTickets,
+  onGoToHome,
   autoBattle = true,
   setAutoBattle,
 }) => {
@@ -422,6 +424,21 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
               >
                 <LogOut size={15} />
               </button>
+              <button
+                onClick={() => {
+                  if (onGoToHome) {
+                    onGoToHome();
+                  } else if (typeof window !== "undefined") {
+                    window.history.pushState(null, '', '/');
+                    window.location.href = '/';
+                  }
+                }}
+                className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-700/90 to-indigo-600/90 hover:from-purple-600 hover:to-indigo-500 border border-purple-400 text-white flex items-center justify-center transition shadow-[0_0_15px_rgba(147,51,234,0.5)] backdrop-blur cursor-pointer hover:scale-105 active:scale-95"
+                title="Return to Home / Landing Page"
+                aria-label="Home"
+              >
+                <Home size={15} />
+              </button>
             </div>
 
             {/* Single Flashing Target Word Floating Overlay on Player 1 Camera */}
@@ -496,6 +513,33 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15m-11.25 5.25h4.5m-4.5 0v-4.5m0 4.5L9 15" />
                   </svg>
                 )}
+              </button>
+              <button
+                onClick={() => {
+                  setMatchStatus("INACTIVE");
+                  setCountdown(null);
+                  setChatLog(prev => [...prev, "🚪 Exited match. Returned to Watchers / Viewers view."]);
+                }}
+                className="w-8 h-8 rounded-lg bg-red-600/90 hover:bg-red-500 border border-red-400 text-white flex items-center justify-center transition shadow-[0_0_15px_rgba(220,38,38,0.5)] backdrop-blur cursor-pointer hover:scale-105 active:scale-95"
+                title="Quit / Exit Match and Return to Watchers View"
+                aria-label="Quit Match"
+              >
+                <LogOut size={15} />
+              </button>
+              <button
+                onClick={() => {
+                  if (onGoToHome) {
+                    onGoToHome();
+                  } else if (typeof window !== "undefined") {
+                    window.history.pushState(null, '', '/');
+                    window.location.href = '/';
+                  }
+                }}
+                className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-700/90 to-indigo-600/90 hover:from-purple-600 hover:to-indigo-500 border border-purple-400 text-white flex items-center justify-center transition shadow-[0_0_15px_rgba(147,51,234,0.5)] backdrop-blur cursor-pointer hover:scale-105 active:scale-95"
+                title="Return to Home / Landing Page"
+                aria-label="Home"
+              >
+                <Home size={15} />
               </button>
             </div>
             {/* Single Flashing Target Word Floating Overlay on Player 2 Camera */}
