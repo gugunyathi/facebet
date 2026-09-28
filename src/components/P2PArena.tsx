@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut } from 'lucide-react';
-import { VideoProvider, API_URL, WS_URL, peer as globalPeer } from '@/utils/constants';
+import { VideoProvider, API_URL, WS_URL, peer as globalPeer, getBrowserClientId } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 
 interface P2PArenaProps {
@@ -45,7 +45,7 @@ interface ArenaState {
 
 export const P2PArena: React.FC<P2PArenaProps> = ({
   currentPeerId = "player-peer-1",
-  walletAddress = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+  walletAddress,
   peerInstance,
   userSession,
   onRequireAuth,
@@ -189,7 +189,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     matchCounter: 0,
     matchStatus: 'WAITING',
     isDemocratizedTurn: false,
-    onlineUsersCount: 1
+    onlineUsersCount: 0
   });
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -404,16 +404,22 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
     let socket: WebSocket | null = null;
 
     try {
-      socket = new WebSocket(WS_URL);
+      const clientId = getBrowserClientId();
+      const arenaWsUrl = `${WS_URL}${WS_URL.includes("?") ? "&" : "?"}clientId=${clientId}`;
+      socket = new WebSocket(arenaWsUrl);
       socketRef.current = socket;
 
       socket.onopen = () => {
-        socket?.send(JSON.stringify({ event: "GET_ARENA_STATE" }));
+        socket?.send(JSON.stringify({ event: "GET_ARENA_STATE", clientId, userId: activeUserId, peerId: activeUserId }));
       };
 
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+
+          if (typeof data.onlineUsersCount === 'number') {
+            setArenaState(prev => ({ ...prev, onlineUsersCount: data.onlineUsersCount }));
+          }
 
           if (data.event === "ARENA_STATE_UPDATE") {
             setArenaState({
@@ -423,7 +429,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               matchCounter: data.matchCounter || 0,
               matchStatus: data.matchStatus || 'WAITING',
               isDemocratizedTurn: !!data.isDemocratizedTurn,
-              onlineUsersCount: data.onlineUsersCount || 1
+              onlineUsersCount: typeof data.onlineUsersCount === 'number' ? data.onlineUsersCount : 0
             });
 
             // Dynamically update user role and queue rank
@@ -926,8 +932,8 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   }, [countdown, gameMode, botData]);
 
   // Dynamic Wallet & Name resolutions for Player 1 and Player 2
-  const p1WalletAddress = arenaState.king?.walletAddress || (myRole === 'PLAYER_1' ? activeWallet : "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
-  const p2WalletAddress = arenaState.challenger?.walletAddress || (myRole === 'PLAYER_2' ? activeWallet : (gameMode === 'PVAI' ? "0x_AI_AGENT_HOLOGRAM_VAULT" : "0x391A2351CF2C8A4D1181f7e0B15a8dB56191a27e"));
+  const p1WalletAddress = arenaState.king?.walletAddress || (myRole === 'PLAYER_1' ? activeWallet : (arenaState.king ? `0x_${arenaState.king.peerId?.slice(0, 8)}` : (userSession?.walletAddress || "")));
+  const p2WalletAddress = arenaState.challenger?.walletAddress || (myRole === 'PLAYER_2' ? activeWallet : (gameMode === 'PVAI' ? "0x_AI_AGENT_HOLOGRAM_VAULT" : (arenaState.challenger ? `0x_${arenaState.challenger.peerId?.slice(0, 8)}` : "")));
 
   const p1DisplayName = arenaState.king?.userName || (myRole === 'PLAYER_1' ? activeName : "Player 1");
   const p2DisplayName = arenaState.challenger?.userName || (myRole === 'PLAYER_2' ? activeName : (gameMode === 'PVAI' ? (botData?.name || "AI Hologram Boss") : "Player 2"));
@@ -1052,7 +1058,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
   const reduxOnlineUsers = useSelector((state: any) => state.main?.onlineUsersCount || 0);
   const activeArenaUsersCount = (arenaState?.king ? 1 : 0) + (arenaState?.challenger ? 1 : 0) + (arenaState?.queue?.length || 0);
-  const totalOnlineCount = Math.max(reduxOnlineUsers, arenaState?.onlineUsersCount || 0, activeArenaUsersCount, 1);
+  const totalOnlineCount = Math.max(reduxOnlineUsers, arenaState?.onlineUsersCount || 0, activeArenaUsersCount);
 
   return (
     <div className="flex flex-row w-full h-full min-h-screen bg-neutral-950 gap-0 overflow-x-hidden select-none relative font-sans antialiased text-white">
@@ -1118,7 +1124,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 </div>
 
                 <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded-lg border border-blue-500/30 text-[10px] font-mono shrink-0">
-                  {p1WalletAddress ? `${p1WalletAddress.substring(0, 6)}...${p1WalletAddress.slice(-4)}` : "..."}
+                  {p1WalletAddress ? (p1WalletAddress.startsWith("0x") ? `${p1WalletAddress.substring(0, 6)}...${p1WalletAddress.slice(-4)}` : p1WalletAddress) : "Not Connected"}
                 </div>
               </div>
             </div>
@@ -1253,7 +1259,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 </div>
 
                 <div className="text-rose-300 bg-black/80 px-2 py-0.5 rounded-lg border border-rose-500/30 text-[10px] font-mono shrink-0">
-                  {p2WalletAddress ? `${p2WalletAddress.substring(0, 6)}...${p2WalletAddress.slice(-4)}` : "..."}
+                  {p2WalletAddress ? (p2WalletAddress.startsWith("0x") ? `${p2WalletAddress.substring(0, 6)}...${p2WalletAddress.slice(-4)}` : p2WalletAddress) : "Not Connected"}
                 </div>
               </div>
             </div>

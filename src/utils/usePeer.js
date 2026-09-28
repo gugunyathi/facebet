@@ -6,7 +6,7 @@ const useWebSocket = typeof useWebSocketRaw === "function"
   ? useWebSocketRaw
   : (useWebSocketRaw?.default || useWebSocketRaw);
 import { log } from "@/utils/helpers";
-import { HEARTBEAT, MESSAGE_EVENTS, WS_URL, peer, API_URL } from "@/utils/constants";
+import { HEARTBEAT, MESSAGE_EVENTS, WS_URL, peer, API_URL, getBrowserClientId } from "@/utils/constants";
 import { addMessage, clearMessages } from "@/features/messaging/messagingSlice";
 import {
   setError,
@@ -117,7 +117,8 @@ export default function usePeer() {
     }
   }, [started, mediaStream]);
 
-  const { sendMessage, lastMessage, readyState } = useWebSocket(WS_URL, {
+  const wsEndpoint = `${WS_URL}${WS_URL.includes("?") ? "&" : "?"}clientId=${getBrowserClientId()}`;
+  const { sendMessage, lastMessage, readyState } = useWebSocket(wsEndpoint, {
     heartbeat: HEARTBEAT,
     shouldReconnect: () => false,
     reconnectAttempts: 2,

@@ -19,7 +19,7 @@ interface DuelModuleProps {
 
 export const DuelModule: React.FC<DuelModuleProps> = ({
   currentPeerId = "player-peer",
-  walletAddress = "0x71C3...3a92",
+  walletAddress,
   userSession,
   onRequireAuth,
   onBuyTickets,
@@ -367,7 +367,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
             </div>
 
             <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded border border-blue-400/30 text-[9px] sm:text-[11px] font-mono shrink-0 ml-1">
-              {activeWallet ? `${activeWallet.substring(0, 6)}...${activeWallet.slice(-4)}` : "0x71C7...976F"}
+              {activeWallet ? `${activeWallet.substring(0, 6)}...${activeWallet.slice(-4)}` : "Not Connected"}
             </div>
           </div>
 

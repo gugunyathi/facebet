@@ -40,6 +40,16 @@ export const WS_URL =
   import.meta.env.VITE_WS_REMOTE_URL ||
   API_URL.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
 
+export const getBrowserClientId = () => {
+  if (typeof window === "undefined") return "server_client";
+  let id = sessionStorage.getItem("facebet_client_id");
+  if (!id) {
+    id = `client_${Math.random().toString(36).substring(2, 10)}`;
+    sessionStorage.setItem("facebet_client_id", id);
+  }
+  return id;
+};
+
 export const HEARTBEAT = {
   message: "ping",
   interval: 58000,

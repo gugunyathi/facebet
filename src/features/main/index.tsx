@@ -40,7 +40,7 @@ const Main: React.FC<MainProps> = ({
   setIsDualTestMode,
 }) => {
   const values = usePeer();
-  const onlineUsersCount = useSelector((state: any) => state.main?.onlineUsersCount || 1);
+  const onlineUsersCount = useSelector((state: any) => state.main?.onlineUsersCount || 0);
   // By default match human users in P2P arena
   const [arenaMode, setArenaMode] = useState<"boss" | "p2p">("p2p");
   const [isPaying, setIsPaying] = useState(false);

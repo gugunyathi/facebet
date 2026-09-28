@@ -6,7 +6,7 @@ const initialState = {
   waitingForMatch: false,
   error: null,
   ready: false,
-  onlineUsersCount: 1,
+  onlineUsersCount: 0,
 };
 
 export const mainSlice = createSlice({
