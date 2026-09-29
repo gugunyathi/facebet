@@ -126,13 +126,51 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
           <button
             onClick={() => setIsOpen(false)}
             aria-label="Close Navigation Menu"
-            className="p-1.5 bg-[#251973] hover:bg-[#322396] rounded-lg text-gray-300 hover:text-white transition"
+            className="p-1.5 bg-[#251973] hover:bg-[#322396] rounded-lg text-gray-300 hover:text-white transition cursor-pointer"
           >
             <MdClose className="w-5 h-5" />
           </button>
         </div>
 
-        {/* User Session Quick Info */}
+        {/* 1. Main Navigation Items (Top of Drawer / Above Free Spectator Mode) */}
+        <nav className="p-3 space-y-1.5 border-b border-white/10 bg-[#0e083d] shrink-0">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activePage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={`w-full text-left p-2.5 rounded-xl transition flex items-start space-x-3 border cursor-pointer ${
+                  isActive
+                    ? "bg-[#644af1] border-[#7c63ff] text-white shadow-lg"
+                    : "bg-[#181050] border-white/10 text-gray-200 hover:bg-[#22176e] hover:text-white"
+                }`}
+              >
+                <div
+                  className={`p-1.5 rounded-lg mt-0.5 shrink-0 ${
+                    isActive ? "bg-[#4f35cf] text-white" : "bg-[#251973] text-gray-200"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-xs sm:text-sm leading-tight flex items-center justify-between">
+                    <span>{item.label}</span>
+                    {isActive && (
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    )}
+                  </div>
+                  <div className="text-[10px] sm:text-[11px] text-purple-200 mt-0.5 leading-snug">
+                    {item.desc}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* 2. User Session / Free Spectator Mode Quick Info */}
         <div className="p-4 bg-[#140e47] border-b border-white/10 shrink-0">
           {userSession ? (
             <div className="space-y-1.5">
@@ -156,7 +194,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               </div>
               <button
                 onClick={() => { onLogout(); setIsOpen(false); }}
-                className="w-full mt-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/40"
+                className="w-full mt-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition border border-red-400/40 cursor-pointer"
               >
                 <MdLogout className="w-4 h-4" />
                 Disconnect Wallet
@@ -173,7 +211,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
               </p>
               <button
                 onClick={() => handleNavigate("about")}
-                className="w-full mt-1 bg-[#644af1] hover:bg-[#5239e0] text-white text-xs font-bold py-2 px-3 rounded-lg transition shadow-md"
+                className="w-full mt-1 bg-[#644af1] hover:bg-[#5239e0] text-white text-xs font-bold py-2 px-3 rounded-lg transition shadow-md cursor-pointer"
               >
                 Connect Wallet / Web3 Auth →
               </button>
@@ -181,8 +219,8 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
           )}
         </div>
 
-        {/* Global Controls */}
-        <div className="p-3 border-b border-white/10 space-y-3 shrink-0 bg-[#0f0933]">
+        {/* 3. Global Controls & Hardware Options */}
+        <div className="p-3 space-y-3 flex-1 overflow-y-auto bg-[#0a0624]">
           {/* Continuous Auto-Battle Status Control Banner */}
           <div className="flex flex-col bg-[#1c135c] border border-[#644af1]/50 p-2.5 rounded-xl gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -297,44 +335,6 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto bg-[#0a0624]">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activePage === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavigate(item.id)}
-                className={`w-full text-left p-3 rounded-xl transition flex items-start space-x-3 border ${
-                  isActive
-                    ? "bg-[#644af1] border-[#7c63ff] text-white shadow-lg"
-                    : "bg-[#181050] border-white/10 text-gray-200 hover:bg-[#22176e] hover:text-white"
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-lg mt-0.5 ${
-                    isActive ? "bg-[#4f35cf] text-white" : "bg-[#251973] text-gray-200"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm leading-tight flex items-center justify-between">
-                    <span>{item.label}</span>
-                    {isActive && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-gray-300 mt-0.5 leading-tight truncate">
-                    {item.desc}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </nav>
 
         {/* Drawer Footer */}
         <div className="p-4 border-t border-white/10 bg-[#07012c] text-center text-[10px] text-gray-300 space-y-2 shrink-0">

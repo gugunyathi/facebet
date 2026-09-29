@@ -460,11 +460,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Primary Fluid Responsive Headline */}
           <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08]">
-            Talk to Strangers.{' '}
+            Game Face On!{' '}
             <span className="block mt-1 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-400">
               Battle Expressions.
             </span>
-            <span className="block mt-1">Win Real Pots.</span>
+            <span className="block mt-1">Win Big JackPots.</span>
           </h1>
 
           {/* Punchy Subtitle */}
