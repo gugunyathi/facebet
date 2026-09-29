@@ -452,6 +452,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="absolute top-12 left-1/2 -translate-x-1/2 w-[300px] sm:w-[600px] h-[200px] sm:h-[350px] bg-gradient-to-b from-purple-600/20 via-pink-600/15 to-transparent blur-3xl rounded-full pointer-events-none" />
 
         <div className="max-w-4xl mx-auto text-center space-y-4 sm:space-y-6 relative z-10">
+          {/* Hero Brand Header with Logo & Title (Just above Game Face On!) */}
+          <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#140b3b] border-2 border-purple-500/50 flex items-center justify-center shadow-[0_0_30px_rgba(236,72,153,0.5)] p-1.5 sm:p-2 transition-transform hover:scale-105">
+              <FacebetLogo className="w-9 h-9 sm:w-12 sm:h-12" />
+            </div>
+            <span className="font-black text-3xl sm:text-5xl md:text-6xl tracking-tight bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-300 bg-clip-text text-transparent">
+              FACEBET
+            </span>
+          </div>
+
           {/* Eyebrow Kicker */}
           <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-white/5 border border-white/15 text-pink-300 text-[10px] sm:text-xs font-extrabold tracking-wide uppercase shadow-sm">
             <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-pink-400 animate-spin" />
