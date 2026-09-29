@@ -310,43 +310,68 @@ export const PlayerDuelSimulation: React.FC<PlayerDuelSimulationProps> = ({
         </div>
 
         {/* ── PLAYER 1 (King of the Hill - Defending Champion) ── */}
-        <div className="relative rounded-2xl overflow-hidden border-2 border-cyan-500/40 bg-zinc-950 aspect-[4/3] sm:aspect-video group shadow-lg">
-          <img
-            src={phase === 'celebration' && winner === 'P2' ? '/simulation/p1_reaction.jpg' : '/simulation/p1_focus.jpg'}
-            alt="Player 1 Video Stream"
-            className="w-full h-full object-cover select-none transition-transform duration-700"
-          />
+        <div className="relative rounded-2xl overflow-hidden border-2 border-cyan-500/50 bg-zinc-950 aspect-[4/3] sm:aspect-video group shadow-[0_0_25px_rgba(6,182,212,0.3)]">
+          {/* Looping Handheld Camera Motion Feed */}
+          <div className="w-full h-full overflow-hidden">
+            <img
+              src={phase === 'celebration' && winner === 'P2' ? '/simulation/p1_reaction.jpg' : '/simulation/p1_focus.jpg'}
+              alt="Player 1 Live Camera Stream"
+              className="w-full h-full object-cover select-none animate-video-loop transition-transform duration-700"
+            />
+          </div>
+
+          {/* Cyber HUD Viewfinder Frame Brackets */}
+          <div className="absolute inset-2 border border-cyan-400/30 rounded-xl pointer-events-none">
+            <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-cyan-400" />
+            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-cyan-400" />
+            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-cyan-400" />
+            <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-cyan-400" />
+          </div>
 
           {/* Futuristic Cyber Stream HUD Overlay */}
           <div className="absolute inset-0 pointer-events-none p-2.5 sm:p-4 flex flex-col justify-between">
             {/* Top Row: Streamer Tag & Status */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-cyan-500/40 text-[10px] sm:text-[11px] font-bold text-cyan-300">
+              <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-cyan-500/40 text-[10px] sm:text-[11px] font-bold text-cyan-300 shadow-md">
                 <Crown className="w-3 h-3 text-amber-400 shrink-0" />
                 <span className="truncate max-w-[100px] sm:max-w-[130px]">Alex_King (3 Wins)</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-mono text-cyan-400 border border-cyan-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                <span>60 FPS</span>
+              <div className="flex items-center gap-1 bg-black/70 px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-mono text-cyan-400 border border-cyan-500/30 shadow">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                <span className="font-extrabold">LIVE 25K</span>
               </div>
             </div>
 
-            {/* Biometric Face Tracking Scanner Grid Effect */}
-            {(phase === 'searching' || phase === 'target') && (
-              <div className="absolute inset-x-6 sm:inset-x-8 inset-y-8 sm:inset-y-12 border border-cyan-400/40 rounded-xl pointer-events-none">
-                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-scan" />
-                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[9px] font-mono text-cyan-400/80">BIOMETRIC GRID</span>
-                <span className="absolute bottom-1 right-1.5 text-[8px] sm:text-[9px] font-mono text-cyan-400/80">14ms REF</span>
-                <div className="absolute -top-1 -left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-cyan-400" />
-                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-cyan-400" />
-                <div className="absolute -bottom-1 -left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-cyan-400" />
-                <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-cyan-400" />
+            {/* AI Biometric Face Tracking Scanner Grid Effect */}
+            {(phase === 'searching' || phase === 'target' || phase === 'match') && (
+              <div className="absolute inset-x-6 sm:inset-x-12 inset-y-6 sm:inset-y-10 pointer-events-none">
+                {/* SVG Biometric Face Mesh Wireframe Overlay */}
+                <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible opacity-80">
+                  {/* Outer Bounding Box */}
+                  <rect x="15" y="15" width="70" height="70" rx="8" fill="none" stroke="#06B6D4" strokeWidth="0.8" strokeDasharray="3 2" />
+                  
+                  {/* Facial Landmark Tracking Line Connections */}
+                  <path d="M 35 38 L 45 38 M 55 38 L 65 38" stroke="#06B6D4" strokeWidth="1" strokeLinecap="round" />
+                  <path d="M 50 35 L 50 55 M 42 55 L 58 55" stroke="#06B6D4" strokeWidth="1" />
+                  <path d="M 38 68 C 45 74, 55 74, 62 68" fill="none" stroke="#06B6D4" strokeWidth="1" />
+
+                  {/* Pulsing Landmark Points */}
+                  <circle cx="35" cy="38" r="1.5" fill="#38BDF8" className="animate-mesh-pulse" />
+                  <circle cx="65" cy="38" r="1.5" fill="#38BDF8" className="animate-mesh-pulse" />
+                  <circle cx="50" cy="50" r="1.5" fill="#34D399" className="animate-ping" />
+                  <circle cx="50" cy="68" r="1.5" fill="#38BDF8" className="animate-mesh-pulse" />
+                </svg>
+
+                {/* Vertical Laser Scan Beam */}
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-scan shadow-[0_0_8px_#06b6d4]" />
+                <span className="absolute top-1 left-1 text-[7px] sm:text-[8px] font-mono text-cyan-300 font-extrabold bg-black/60 px-1 rounded">FACE_ID: #4092</span>
+                <span className="absolute bottom-1 right-1 text-[7px] sm:text-[8px] font-mono text-cyan-300 font-extrabold bg-black/60 px-1 rounded">14ms BIOMETRIC</span>
               </div>
             )}
 
             {/* Reaction Text Banner in Celebration */}
             {phase === 'celebration' && winner === 'P2' && (
-              <div className="absolute inset-x-3 sm:inset-x-4 top-1/4 bg-black/90 border border-red-500/60 p-2 sm:p-2.5 rounded-xl text-center backdrop-blur-md animate-fade-in">
+              <div className="absolute inset-x-3 sm:inset-x-4 top-1/4 bg-black/90 border border-red-500/60 p-2 sm:p-2.5 rounded-xl text-center backdrop-blur-md animate-fade-in shadow-xl">
                 <div className="text-red-400 text-xs sm:text-sm font-black uppercase tracking-wider">
                   ROUND LOST • TRY AGAIN!
                 </div>
@@ -357,10 +382,10 @@ export const PlayerDuelSimulation: React.FC<PlayerDuelSimulationProps> = ({
             )}
 
             {/* Bottom Row: Expression Confidence Meter */}
-            <div className="flex items-center justify-between bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 text-xs">
+            <div className="flex items-center justify-between bg-black/80 backdrop-blur-md px-2.5 py-1 sm:py-1.5 rounded-xl border border-white/10 text-xs shadow-md">
               <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-zinc-300">
                 <span className="text-zinc-400">Accuracy:</span>
-                <span className="font-mono font-bold text-cyan-300">{p1Score}%</span>
+                <span className="font-mono font-extrabold text-cyan-300">{p1Score}%</span>
               </div>
               <div className="w-20 sm:w-28 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                 <div
@@ -373,33 +398,63 @@ export const PlayerDuelSimulation: React.FC<PlayerDuelSimulationProps> = ({
         </div>
 
         {/* ── PLAYER 2 (Challenger - Winner with Fireworks) ── */}
-        <div className="relative rounded-2xl overflow-hidden border-2 border-pink-500/40 bg-zinc-950 aspect-[4/3] sm:aspect-video group shadow-lg">
-          <img
-            src={phase === 'celebration' && winner === 'P2' ? '/simulation/p2_win.jpg' : '/simulation/p2_focus.jpg'}
-            alt="Player 2 Video Stream"
-            className="w-full h-full object-cover select-none transition-transform duration-700"
-          />
+        <div className="relative rounded-2xl overflow-hidden border-2 border-pink-500/50 bg-zinc-950 aspect-[4/3] sm:aspect-video group shadow-[0_0_25px_rgba(236,72,153,0.3)]">
+          {/* Looping Handheld Camera Motion Feed */}
+          <div className="w-full h-full overflow-hidden">
+            <img
+              src={phase === 'celebration' && winner === 'P2' ? '/simulation/p2_win.jpg' : '/simulation/p2_focus.jpg'}
+              alt="Player 2 Live Camera Stream"
+              className="w-full h-full object-cover select-none animate-video-loop transition-transform duration-700"
+            />
+          </div>
+
+          {/* Cyber HUD Viewfinder Frame Brackets */}
+          <div className="absolute inset-2 border border-pink-400/30 rounded-xl pointer-events-none">
+            <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-pink-400" />
+            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-pink-400" />
+            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-pink-400" />
+            <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-pink-400" />
+          </div>
 
           {/* Futuristic Cyber Stream HUD Overlay */}
           <div className="absolute inset-0 pointer-events-none p-2.5 sm:p-4 flex flex-col justify-between">
             {/* Top Row: Streamer Tag & Status */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-pink-500/40 text-[10px] sm:text-[11px] font-bold text-pink-300">
+              <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-pink-500/40 text-[10px] sm:text-[11px] font-bold text-pink-300 shadow-md">
                 <Sparkles className="w-3 h-3 text-pink-400 shrink-0" />
                 <span className="truncate max-w-[100px] sm:max-w-[130px]">Elena_Challenger</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-mono text-pink-400 border border-pink-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-pulse" />
-                <span>P2P VERIFIED</span>
+              <div className="flex items-center gap-1 bg-black/70 px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-mono text-pink-400 border border-pink-500/30 shadow">
+                <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping" />
+                <span className="font-extrabold">P2P VERIFIED</span>
               </div>
             </div>
+
+            {/* AI Biometric Face Mesh Grid Overlay */}
+            {(phase === 'searching' || phase === 'target' || phase === 'match') && (
+              <div className="absolute inset-x-6 sm:inset-x-12 inset-y-6 sm:inset-y-10 pointer-events-none">
+                <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible opacity-80">
+                  <rect x="15" y="15" width="70" height="70" rx="8" fill="none" stroke="#EC4899" strokeWidth="0.8" strokeDasharray="3 2" />
+                  <path d="M 35 38 L 45 38 M 55 38 L 65 38" stroke="#EC4899" strokeWidth="1" strokeLinecap="round" />
+                  <path d="M 50 35 L 50 55 M 42 55 L 58 55" stroke="#EC4899" strokeWidth="1" />
+                  <path d="M 38 68 C 45 74, 55 74, 62 68" fill="none" stroke="#EC4899" strokeWidth="1" />
+                  <circle cx="35" cy="38" r="1.5" fill="#F472B6" className="animate-mesh-pulse" />
+                  <circle cx="65" cy="38" r="1.5" fill="#F472B6" className="animate-mesh-pulse" />
+                  <circle cx="50" cy="50" r="1.5" fill="#34D399" className="animate-ping" />
+                  <circle cx="50" cy="68" r="1.5" fill="#F472B6" className="animate-mesh-pulse" />
+                </svg>
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent animate-scan shadow-[0_0_8px_#ec4899]" />
+                <span className="absolute top-1 left-1 text-[7px] sm:text-[8px] font-mono text-pink-300 font-extrabold bg-black/60 px-1 rounded">TRACKING_OK</span>
+                <span className="absolute bottom-1 right-1 text-[7px] sm:text-[8px] font-mono text-pink-300 font-extrabold bg-black/60 px-1 rounded">100% MATCH</span>
+              </div>
+            )}
 
             {/* Target Match Neon Flash */}
             {(phase === 'match' || phase === 'celebration') && winner === 'P2' && (
               <div className="absolute inset-0 bg-emerald-500/10 border-2 border-emerald-400/80 animate-pulse rounded-2xl pointer-events-none" />
             )}
 
-            {/* Victory Celebration Graphic matching Video 2 & 3 */}
+            {/* Victory Celebration Graphic */}
             {phase === 'celebration' && winner === 'P2' && (
               <div className="absolute inset-x-3 sm:inset-x-4 top-1/5 bg-black/90 border-2 border-amber-400/80 p-2 sm:p-3 rounded-2xl text-center backdrop-blur-xl shadow-[0_0_40px_rgba(251,191,36,0.5)] animate-scale-up">
                 <div className="flex items-center justify-center gap-1 text-emerald-400 text-[9px] sm:text-xs font-mono font-black tracking-widest uppercase">
@@ -418,10 +473,10 @@ export const PlayerDuelSimulation: React.FC<PlayerDuelSimulationProps> = ({
             )}
 
             {/* Bottom Row: Expression Confidence Meter */}
-            <div className="flex items-center justify-between bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 text-xs">
+            <div className="flex items-center justify-between bg-black/80 backdrop-blur-md px-2.5 py-1 sm:py-1.5 rounded-xl border border-white/10 text-xs shadow-md">
               <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-zinc-300">
                 <span className="text-zinc-400">Accuracy:</span>
-                <span className="font-mono font-bold text-pink-300">{p2Score}%</span>
+                <span className="font-mono font-extrabold text-pink-300">{p2Score}%</span>
               </div>
               <div className="w-20 sm:w-28 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                 <div

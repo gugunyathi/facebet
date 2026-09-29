@@ -41,6 +41,27 @@ button {
   50% { transform: translateY(-4px); }
 }
 
+@keyframes videoLoop {
+  0% { transform: scale(1.0) translate(0px, 0px); }
+  25% { transform: scale(1.04) translate(-2px, -1px); }
+  50% { transform: scale(1.02) translate(1px, 2px); }
+  75% { transform: scale(1.05) translate(-1px, 1px); }
+  100% { transform: scale(1.0) translate(0px, 0px); }
+}
+
+@keyframes meshPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.18); }
+}
+
+.animate-video-loop {
+  animation: videoLoop 8s ease-in-out infinite alternate;
+}
+
+.animate-mesh-pulse {
+  animation: meshPulse 1.8s ease-in-out infinite;
+}
+
 .animate-marquee {
   display: inline-flex;
   animation: marquee 25s linear infinite;
