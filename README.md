@@ -1,24 +1,42 @@
 # 🌟 FACE BET — Hybrid Web3 Live Video Gaming & AI Lottery Platform on Base
 
-**FACE BET** is a next-generation, high-octane Web3 live video gaming, facial AI evaluation, and decentralised lottery arena built natively on the **Base L2 Network** (`0x2105`). Players engage in live video duels, match facial expressions against AI target trends using **Google Gemini Multimodal AI**, and compete for jackpot prize pools funded via USDC micro-tickets.
+**FACE BET** is a next-generation, high-octane Web3 live video gaming, facial AI evaluation, and decentralised lottery arena built natively on the **Base L2 Network** (`0x2105`). Players engage in live video duels, match facial expressions against AI target trends using **Google Gemini Multimodal AI**, and compete for jackpot prize pools funded via USDC micro-tickets and $0.20 bid stakes.
 
 ---
 
 ## ⚡ Key Features & Recent Updates
 
+### 🎨 Brand Identity & Custom Biometric Logo
+- **Custom Facebet Logo (`FacebetLogo.tsx`)**: High-contrast biometric face silhouette with camera viewfinder brackets, horizontal laser scan beam with neon bloom glow, and a circular "BET" token badge.
+- **App Color Theme**: Vibrant gradient palette combining Cyber Gold/Amber (`#FBBF24`), Violet/Purple (`#A855F7`), Pink/Magenta (`#EC4899`), and Neon Cyan (`#06B6D4`).
+- **Unified Branding**: Prominent **FACEBET** title & logo integrated across the home hero section, navigation header, sliding burger drawer, subpages header, and browser favicon (`/public/favicon.svg`).
+- **Hero Headline**: Updated primary landing page headline: **"Game Face On! Battle Expressions. Win Big JackPots."** with brand logo header directly above it.
+
 ### ⚔️ Real-Time P2P Camera Duels & Dynamic Rotational Queue
 - **King-of-the-Hill Matchmaking**: Continuous rotational queue where players transition seamlessly between Spectator, Challenger (Player 2), and King (Player 1) roles.
+- **Side-by-Side Arena Controls**: Below the player camera view boxes:
+  - **Left Side**: "SELECT BID / STAKE AMOUNT" panel with preset buttons (`$0.20`, `$0.50`, `$1.00`, `$5.00`, `$10.00`).
+  - **Right Side**: "START P2P ARENA MATCH" action button (`⚔️ START P2P ARENA MATCH ($0.20 BIDS)`), dynamically updating with the selected bid.
+  - **Below Them**: "LIVE ARENA QUEUE ROSTER" panel showing the active King, Challenger, and queued players list.
+- **Floating Home Button**: Independent glassmorphic Home button (`<Home size={15} />`) placed directly beneath the red Quit/Exit button on both player camera feeds for instant return to the main landing page.
 - **WebRTC PeerJS Mesh Network**: 
   - Centralized Render WebSocket backend strictly manages JSON state and queue positions.
   - Active players (King & Challenger) automatically broker direct 1-to-1 WebRTC connections.
   - **Live Spectator Mesh**: Active players autonomously broadcast their video feeds point-to-point to all queued spectators for true zero-latency audience viewing.
 - **Role-Gated Hardware Efficiency**: Hardware cameras (`getUserMedia`) are strictly engaged only when a user is actively battling, eliminating browser stream limits and preserving spectator bandwidth.
-- **Edge-to-Edge Gapless Video Frames**: Camera views touch directly edge-to-edge separated only by blue (P1) and pink (P2) player borders.
 - **Mobile Viewport Controls**:
   - **`📱 Stack / ↔️ Side-by-Side`**: Instant toggle between vertical video stack and horizontal split-screen view.
   - **`⤢ Fullscreen`**: Viewport expansion to fill the complete mobile display, with `↙↗ Exit Fullscreen` toggle.
 
+### 🍔 Reorganized Drawer Navigation (Burger Menu)
+- **Top Navigation Ordering**: Main navigation links positioned **at the very top / above Free Spectator Mode**:
+  1. **Live Arena Stream**: *"Watch active P2P video matches face-to-face"*
+  2. **Web3 Auth & About**: *"Verify wallet, $1 = 10 tickets & game info"*
+  3. **FACE BET Timeline**: *"Live draws, winner logs & jackpot records"*
+  4. **Settings**: *"Web3 network, video quality & sound options"*
+
 ### 🔵 Base Account SDK & Native Web3 Auth
+- **Unified Wallet & Chain Selector (`UnifiedWalletChainButton.tsx`)**: Single button combining wallet address, network badge, and chain icon with quick network switching dropdown.
 - **Sign in with Base**: Built with `@base-org/account`, `@base-org/account-ui`, and `viem`.
 - **SIWE Cryptographic Verification**: EIP-4361 Sign-In with Ethereum nonce verification API (`/api/auth/nonce` & `/api/auth/verify`).
 - **Multi-Wallet Fallbacks**: Full support for Coinbase Wallet extension, MetaMask, and ARC Network (`0x12d0`).
@@ -27,6 +45,7 @@
 ### 💳 Native Base Payments (`pay`) & Subscriptions (`subscribe`)
 - **One-Click USDC Payments (`pay`)**: Execute $1.00 USDC ticket purchases directly on Base for 10 game entry slots.
 - **Auto-Renewing Subscriptions (`subscribe`)**: Recurring $5.00/month VIP Pass subscriptions with EIP-712 spend permissions for 50 auto-renewing tickets/month.
+- **START MATCH Action Button**: Displays `$0.20` price tag on the Start Match button next to the Base Pay button across all screen resolutions.
 - **Multi-Channel Fiat Gateway**: Paystack credit card and mobile money fallback checkout.
 
 ### 🔮 Dual Live Video Arenas
