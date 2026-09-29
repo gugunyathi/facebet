@@ -1446,24 +1446,74 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
         </div>
 
-        {/* 🚀 MATCH CONTROL BUTTON (When inactive/complete) */}
-        {(matchStatus === "INACTIVE" || matchStatus === "COMPLETE") && (
-          <div className="mb-3">
-            <button
-              onClick={triggerMatchmakePipeline}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-sm sm:text-base rounded-2xl shadow-[0_0_30px_rgba(245,158,11,0.5)] transition transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-300"
-            >
-              <span>⚔️ {matchStatus === "COMPLETE" ? "Play Next P2P Duel Round" : "Start P2P Arena Match ($0.20 Bids)"}</span>
-            </button>
-          </div>
-        )}
+        {/* 💳 SIDE-BY-SIDE BID SELECTOR & START MATCH ACTION ROW (Below Camera View Boxes) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 items-stretch">
+          
+          {/* LEFT COLUMN: SELECT BID / STAKE AMOUNT BOX */}
+          <div className="bg-zinc-950/80 border border-amber-500/30 backdrop-blur-xl rounded-2xl p-3.5 sm:p-4 shadow-2xl flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <span className="text-xs sm:text-sm font-extrabold text-zinc-100 uppercase tracking-wide flex items-center gap-1.5 truncate">
+                <span>💰</span>
+                <span>Select Bid / Stake Amount:</span>
+              </span>
+              {bidAmount > 0.20 && (
+                <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/40 animate-pulse whitespace-nowrap shrink-0">
+                  ⚡ Priority Jump
+                </span>
+              )}
+            </div>
 
-        {matchStatus === "QUEUEING" && (
-          <div className="mb-3 py-4 flex flex-col items-center justify-center border border-dashed border-purple-500/50 rounded-2xl p-4 text-center space-y-2 bg-purple-950/30 backdrop-blur-md">
-            <div className="w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-purple-200 text-xs font-bold m-0">Connecting to P2P WebRTC match queue...</p>
+            {/* Bid Presets Grid - 5 Amounts */}
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-2 w-full">
+              {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setBidAmount(amt)}
+                  className={`py-2 px-1 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                    bidAmount === amt
+                      ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] font-black scale-[1.02]"
+                      : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10 font-bold"
+                  }`}
+                >
+                  <span className="text-xs sm:text-sm tracking-tight font-black">${amt.toFixed(2)}</span>
+                  <span className="text-[8px] opacity-80 hidden xs:inline font-semibold">
+                    {amt === 0.20 ? "Standard" : "Priority"}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+
+          {/* RIGHT COLUMN: START P2P ARENA MATCH BUTTON BOX */}
+          <div className="bg-zinc-950/80 border border-purple-500/30 backdrop-blur-xl rounded-2xl p-3.5 sm:p-4 shadow-2xl flex flex-col items-center justify-center min-h-[90px]">
+            {myRole === 'QUEUED' ? (
+              <button
+                onClick={handleLeaveArenaQueue}
+                className="w-full h-full min-h-[58px] bg-amber-500 hover:bg-amber-400 text-black font-black text-xs sm:text-sm py-3 px-4 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-2 animate-pulse uppercase tracking-wider"
+              >
+                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — CLICK TO LEAVE QUEUE</span>
+              </button>
+            ) : matchStatus === "QUEUEING" ? (
+              <div className="w-full h-full min-h-[58px] py-3 px-4 flex items-center justify-center border border-dashed border-purple-500/50 rounded-xl bg-purple-950/30 backdrop-blur-md text-center gap-2">
+                <div className="w-5 h-5 border-3 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                <span className="text-purple-200 text-xs font-extrabold uppercase">Connecting to Queue...</span>
+              </div>
+            ) : (
+              <button
+                onClick={async () => {
+                  if (myRole === 'SPECTATOR') {
+                    await handleJoinArenaQueue();
+                  }
+                  triggerMatchmakePipeline();
+                }}
+                className="w-full h-full min-h-[58px] py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-xs sm:text-sm md:text-base rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.5)] transition transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-300"
+              >
+                <span>⚔️ {matchStatus === "COMPLETE" ? `PLAY NEXT P2P ROUND ($${bidAmount.toFixed(2)})` : `START P2P ARENA MATCH ($${bidAmount.toFixed(2)} BIDS)`}</span>
+              </button>
+            )}
+          </div>
+
+        </div>
 
         {/* 📋 LIVE ONLINE ARENA QUEUE ROSTER PANEL */}
         <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl">
@@ -1580,70 +1630,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                   <div className="text-2xl mb-1">💤</div>
                   <div className="text-xs font-extrabold text-zinc-200">Queue is empty</div>
                   <div className="text-[11px] text-zinc-400 max-w-xs text-center mt-1 leading-snug">
-                    Select your bid amount below and click "Join Arena Queue" to play!
+                    Select your bid amount above and click "Start P2P Arena Match" to play!
                   </div>
                 </div>
               )
-            )}
-          </div>
-        </div>
-
-        {/* 💳 ARENA QUEUE & BID ACTION PANEL */}
-        <div className="bg-zinc-950/60 border border-white/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl space-y-3">
-          
-          {/* Bid / Bet Amount Selector Header */}
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <span className="text-xs sm:text-sm font-extrabold text-zinc-200 uppercase tracking-wide flex items-center gap-1.5 truncate">
-              <span>💰</span>
-              <span>Select Bid / Stake Amount:</span>
-            </span>
-            {bidAmount > 0.20 && (
-              <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/40 animate-pulse whitespace-nowrap shrink-0">
-                ⚡ Priority Jump
-              </span>
-            )}
-          </div>
-
-          {/* Bid Presets Grid - Fully Responsive across all screens */}
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 w-full">
-            {[0.20, 0.50, 1.00, 5.00, 10.00].map((amt) => (
-              <button
-                key={amt}
-                onClick={() => setBidAmount(amt)}
-                className={`py-2 px-1 sm:px-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
-                  bidAmount === amt
-                    ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] font-black scale-[1.02]"
-                    : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10 font-bold"
-                }`}
-              >
-                <span className="text-xs sm:text-sm tracking-tight">${amt.toFixed(2)}</span>
-                <span className="text-[9px] opacity-80 hidden sm:inline font-semibold">
-                  {amt === 0.20 ? "Standard" : "Priority"}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Queue Action Button */}
-          <div className="w-full pt-1">
-            {myRole === 'QUEUED' ? (
-              <button
-                onClick={handleLeaveArenaQueue}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black text-xs sm:text-sm py-3 px-4 rounded-xl border border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition cursor-pointer flex items-center justify-center gap-2 animate-pulse uppercase tracking-wider"
-              >
-                <span>⏳ IN QUEUE (#{myQueuePosition || 1}) — Click to Leave Queue</span>
-              </button>
-            ) : myRole === 'SPECTATOR' ? (
-              <button
-                onClick={handleJoinArenaQueue}
-                className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs sm:text-sm py-3 px-4 rounded-xl border border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.5)] transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
-              >
-                <span>⚔️ JOIN ARENA QUEUE (${bidAmount.toFixed(2)})</span>
-              </button>
-            ) : (
-              <div className="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-black text-xs sm:text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider">
-                <span>🔥 LIVE IN MATCH — Winner Stays On!</span>
-              </div>
             )}
           </div>
         </div>

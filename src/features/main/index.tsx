@@ -183,11 +183,12 @@ const Main: React.FC<MainProps> = ({
                 window.dispatchEvent(new CustomEvent("trigger_p2p_match"));
               }}
               className="bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg shadow border border-amber-300 transition active:scale-95 flex items-center gap-1 shrink-0 uppercase tracking-wide cursor-pointer"
+              title="Start Match ($0.20 Bids)"
             >
               <span>⚔️</span>
-              <span className="hidden lg:inline">Start P2P Match ($0.20 Bids)</span>
-              <span className="hidden sm:inline lg:hidden">Start P2P Match</span>
-              <span className="sm:hidden">Start Match</span>
+              <span className="hidden lg:inline">Start P2P Match ($0.20)</span>
+              <span className="hidden sm:inline lg:hidden">Start Match ($0.20)</span>
+              <span className="sm:hidden">Start Match ($0.20)</span>
             </button>
           </div>
         </div>
