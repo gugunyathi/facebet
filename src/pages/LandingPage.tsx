@@ -627,18 +627,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white">
             Current Rollover Pot:{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">
-              ${livePotUSD}
+              ${livePotUSD} <span className="text-base sm:text-2xl font-bold text-amber-200">({(parseFloat(livePotUSD.replace(/,/g, '')) * 10).toLocaleString()} $FBET)</span>
             </span>
           </h2>
 
           <p className="text-xs sm:text-sm text-zinc-300 max-w-xl mx-auto leading-relaxed">
-            Every match stake ($0.20 to $5.00) fuels the active match pool and community reserve. If nobody dethrones the King, the pot compounds into the next challenger!
+            Every match stake ($0.20 to $5.00 / $FBET equivalent) fuels the active $FBET jackpot prize pool and community reserve on Base &amp; ARC. If nobody dethrones the King, the pot compounds into the next challenger!
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2 sm:pt-4 border-t border-white/10 text-left">
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10">
-              <div className="text-[10px] sm:text-xs text-zinc-400">Entry Ticket</div>
-              <div className="text-sm sm:text-lg font-black text-white">$0.20</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400">Entry Stake</div>
+              <div className="text-sm sm:text-lg font-black text-white">0.20 FBET</div>
             </div>
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10">
               <div className="text-[10px] sm:text-xs text-zinc-400">Win Rate Bonus</div>
@@ -649,8 +649,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="text-sm sm:text-lg font-black text-pink-400">Every 10th</div>
             </div>
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10">
-              <div className="text-[10px] sm:text-xs text-zinc-400">Settlement Speed</div>
-              <div className="text-sm sm:text-lg font-black text-cyan-400">Instant</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400">Token Ticker</div>
+              <div className="text-sm sm:text-lg font-black text-amber-300">$FBET</div>
             </div>
           </div>
 
@@ -659,8 +659,60 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={onEnterArena}
               className="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer min-h-[48px]"
             >
-              Play for the Pot &rarr;
+              Play for the $FBET Pot &rarr;
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          FBET TOKEN UTILITY & CROSS-CHAIN ECOSYSTEM
+      ───────────────────────────────────────────────────────────── */}
+      <section className="py-12 sm:py-16 px-3 sm:px-6 relative bg-gradient-to-b from-transparent via-purple-950/30 to-black">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] sm:text-xs font-extrabold uppercase">
+              <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+              <span>Native Token Ecosystem</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black text-white">
+              Powered by <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-300">$FBET Token</span> on Base &amp; ARC
+            </h2>
+            <p className="text-xs sm:text-sm text-zinc-300 max-w-xl mx-auto">
+              $FBET is the native utility token powering all core mechanics across the FACEBET arena.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-zinc-900/80 border border-amber-500/30 p-5 rounded-2xl space-y-2 backdrop-blur-md shadow-xl">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-black text-lg">
+                🏆
+              </div>
+              <h3 className="text-sm font-black text-white uppercase">Jackpot Prize (POT)</h3>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Accumulates from match stakes and ticket buy-ins. Claimed by the reigning King-of-the-Hill or tournament champion in $FBET.
+              </p>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-purple-500/30 p-5 rounded-2xl space-y-2 backdrop-blur-md shadow-xl">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 font-black text-lg">
+                ⚡
+              </div>
+              <h3 className="text-sm font-black text-white uppercase">Queue Bids &amp; Jumps</h3>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Stake $FBET (0.20 to 10.00 FBET) to bypass the regular queue, secure priority match placement, and outbid rivals.
+              </p>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-cyan-500/30 p-5 rounded-2xl space-y-2 backdrop-blur-md shadow-xl">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-black text-lg">
+                🌐
+              </div>
+              <h3 className="text-sm font-black text-white uppercase">Base &amp; ARC Cross-Chain</h3>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Fully deployed and bridged on Base L2 and ARC Network. Instant deposits, lightning-fast settlement, and non-custodial payouts.
+              </p>
+            </div>
           </div>
         </div>
       </section>

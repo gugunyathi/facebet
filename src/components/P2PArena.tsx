@@ -134,6 +134,17 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2' | 'QUEUED' | 'SPECTATOR'>('SPECTATOR');
   const [bidAmount, setBidAmount] = useState<number>(0.20);
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
+  const [potInUSD, setPotInUSD] = useState<boolean>(false);
+  const [bidsInUSD, setBidsInUSD] = useState<boolean>(false);
+
+  const formatPot = (usdStr: string) => {
+    const num = parseFloat(usdStr.replace(/,/g, '')) || 2446.95;
+    return potInUSD ? `$${usdStr}` : `${(num * 10).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} $FBET`;
+  };
+
+  const formatBid = (usdNum: number) => {
+    return bidsInUSD ? `$${usdNum.toFixed(2)}` : `${(usdNum * 10).toFixed(1)} FBET`;
+  };
 
   // Target Words Overlay State for Facial Expressions
   const [rolloverPotUSD, setRolloverPotUSD] = useState<string>("2,446.95");
@@ -1120,9 +1131,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
               <div className="flex items-center gap-2 shrink-0">
                 {/* POT Badge */}
-                <div className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg">
+                <div 
+                  onClick={() => setPotInUSD(!potInUSD)}
+                  className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg cursor-pointer transition hover:scale-105"
+                  title="Click to switch between $FBET and USD equivalent"
+                >
                   <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
-                  <span className="text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+                  <span className="text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
                 </div>
 
                 <div className="text-blue-300 bg-black/80 px-2 py-0.5 rounded-lg border border-blue-500/30 text-[10px] font-mono shrink-0">
@@ -1272,9 +1287,13 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
 
               <div className="flex items-center gap-2 shrink-0">
                 {/* POT Badge */}
-                <div className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg">
+                <div 
+                  onClick={() => setPotInUSD(!potInUSD)}
+                  className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg cursor-pointer transition hover:scale-105"
+                  title="Click to switch between $FBET and USD equivalent"
+                >
                   <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
-                  <span className="text-xs font-black text-amber-400 leading-none">${rolloverPotUSD}</span>
+                  <span className="text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
                 </div>
 
                 <div className="text-rose-300 bg-black/80 px-2 py-0.5 rounded-lg border border-rose-500/30 text-[10px] font-mono shrink-0">
@@ -1456,11 +1475,27 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 <span>💰</span>
                 <span>Select Bid / Stake Amount:</span>
               </span>
-              {bidAmount > 0.20 && (
-                <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/40 animate-pulse whitespace-nowrap shrink-0">
-                  ⚡ Priority Jump
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[9px] font-mono text-amber-300/90 hidden xs:inline bg-black/50 px-2 py-0.5 rounded-md border border-amber-500/30 font-bold">
+                  $1 = 10 FBET
                 </span>
-              )}
+
+                <button
+                  onClick={() => setBidsInUSD(!bidsInUSD)}
+                  className="flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-extrabold transition cursor-pointer shadow"
+                  title="Switch currency between $ and FBET ($1:10FBET)"
+                >
+                  <span className="text-sm font-black">⇄</span>
+                  <span>{bidsInUSD ? "Switch to FBET" : "Switch to $"}</span>
+                </button>
+
+                {bidAmount > 0.20 && (
+                  <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/40 animate-pulse whitespace-nowrap shrink-0 hidden sm:inline">
+                    ⚡ Priority
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Bid Presets Grid - 5 Amounts */}
@@ -1475,7 +1510,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                       : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10 font-bold"
                   }`}
                 >
-                  <span className="text-xs sm:text-sm tracking-tight font-black">${amt.toFixed(2)}</span>
+                  <span className="text-xs sm:text-sm tracking-tight font-black">
+                    {bidsInUSD ? `$${amt.toFixed(2)}` : `${(amt * 10).toFixed(2)} FBET`}
+                  </span>
                   <span className="text-[8px] opacity-80 hidden xs:inline font-semibold">
                     {amt === 0.20 ? "Standard" : "Priority"}
                   </span>
@@ -1508,7 +1545,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 }}
                 className="w-full h-full min-h-[58px] py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-black font-black text-xs sm:text-sm md:text-base rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.5)] transition transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-300"
               >
-                <span>⚔️ {matchStatus === "COMPLETE" ? `PLAY NEXT P2P ROUND ($${bidAmount.toFixed(2)})` : `START P2P ARENA MATCH ($${bidAmount.toFixed(2)} BIDS)`}</span>
+                <span>⚔️ {matchStatus === "COMPLETE" ? `PLAY NEXT P2P ROUND (${formatBid(bidAmount)})` : `START P2P ARENA MATCH (${formatBid(bidAmount)} BIDS)`}</span>
               </button>
             )}
           </div>
