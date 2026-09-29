@@ -15,6 +15,21 @@ import { ArcAppKitModal } from "./components/ArcAppKitModal";
 import { UnifiedWalletChainButton } from "./components/UnifiedWalletChainButton";
 import { TrendTicker } from "./components/TrendTicker";
 import { FacebetLogo } from "./components/FacebetLogo";
+import { useCurrency } from "./context/CurrencyContext";
+
+function GlobalCurrencyToggle() {
+  const { currencyMode, toggleCurrencyMode } = useCurrency();
+  return (
+    <button
+      onClick={toggleCurrencyMode}
+      className="flex items-center gap-1.5 bg-purple-950/80 hover:bg-purple-900 border border-amber-400/50 px-2.5 py-1.5 rounded-xl text-[10px] sm:text-xs font-black text-amber-300 transition shadow cursor-pointer shrink-0"
+      title="Global Display Preference: Toggle between USD ($) and FBET"
+    >
+      <span className="text-[10px] text-zinc-400 uppercase hidden xs:inline">Display:</span>
+      <span className="bg-black/60 px-1.5 py-0.5 rounded text-white">{currencyMode === 'FBET' ? '$FBET' : '$USD'}</span>
+    </button>
+  );
+}
 import {
   MdConfirmationNumber,
   MdVisibility,
@@ -245,8 +260,11 @@ export function App() {
             </div>
           </div>
 
-          {/* Right Header Cluster: Pool Info + Unified Wallet & Chain Selector Button */}
+          {/* Right Header Cluster: Pool Info + Global Currency Toggle + Unified Wallet & Chain Selector Button */}
           <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
+            {/* Global Currency Display Preference Toggle */}
+            <GlobalCurrencyToggle />
+
             {/* Live Pool Banner */}
             <div className="hidden lg:flex items-center space-x-2 bg-purple-900/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">
               <MdGeneratingTokens className="w-4 h-4 text-amber-400 shrink-0" />

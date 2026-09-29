@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut, Home } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer, getBrowserClientId } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface P2PArenaProps {
   currentPeerId?: string;
@@ -134,16 +135,10 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [myRole, setMyRole] = useState<'PLAYER_1' | 'PLAYER_2' | 'QUEUED' | 'SPECTATOR'>('SPECTATOR');
   const [bidAmount, setBidAmount] = useState<number>(0.20);
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
-  const [potInUSD, setPotInUSD] = useState<boolean>(false);
-  const [bidsInUSD, setBidsInUSD] = useState<boolean>(false);
-
-  const formatPot = (usdStr: string) => {
-    const num = parseFloat(usdStr.replace(/,/g, '')) || 2446.95;
-    return potInUSD ? `$${usdStr}` : `${(num * 10).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} $FBET`;
-  };
+  const { currencyMode, toggleCurrencyMode, formatPot } = useCurrency();
 
   const formatBid = (usdNum: number) => {
-    return bidsInUSD ? `$${usdNum.toFixed(2)}` : `${(usdNum * 10).toFixed(1)} FBET`;
+    return currencyMode === 'USD' ? `$${usdNum.toFixed(2)}` : `${(usdNum * 10).toFixed(2)} FBET`;
   };
 
   // Target Words Overlay State for Facial Expressions
@@ -1132,9 +1127,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               <div className="flex items-center gap-2 shrink-0">
                 {/* POT Badge */}
                 <div 
-                  onClick={() => setPotInUSD(!potInUSD)}
+                  onClick={toggleCurrencyMode}
                   className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg cursor-pointer transition hover:scale-105"
-                  title="Click to switch between $FBET and USD equivalent"
+                  title="Global Display Preference: Switch between $FBET and USD equivalent"
                 >
                   <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
                   <span className="text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
@@ -1288,9 +1283,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               <div className="flex items-center gap-2 shrink-0">
                 {/* POT Badge */}
                 <div 
-                  onClick={() => setPotInUSD(!potInUSD)}
+                  onClick={toggleCurrencyMode}
                   className="flex items-center gap-1.5 bg-black/80 border border-amber-400/50 px-2.5 py-0.5 rounded-full shadow-lg cursor-pointer transition hover:scale-105"
-                  title="Click to switch between $FBET and USD equivalent"
+                  title="Global Display Preference: Switch between $FBET and USD equivalent"
                 >
                   <span className="text-[10px] text-zinc-400 font-black tracking-wider uppercase leading-none">POT</span>
                   <span className="text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
@@ -1482,12 +1477,12 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 </span>
 
                 <button
-                  onClick={() => setBidsInUSD(!bidsInUSD)}
+                  onClick={toggleCurrencyMode}
                   className="flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-extrabold transition cursor-pointer shadow"
-                  title="Switch currency between $ and FBET ($1:10FBET)"
+                  title="Global Display Preference: Switch currency between $ and FBET"
                 >
                   <span className="text-sm font-black">⇄</span>
-                  <span>{bidsInUSD ? "Switch to FBET" : "Switch to $"}</span>
+                  <span>{currencyMode === 'USD' ? "Switch to FBET" : "Switch to $"}</span>
                 </button>
 
                 {bidAmount > 0.20 && (
@@ -1511,7 +1506,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                   }`}
                 >
                   <span className="text-xs sm:text-sm tracking-tight font-black">
-                    {bidsInUSD ? `$${amt.toFixed(2)}` : `${(amt * 10).toFixed(2)} FBET`}
+                    {currencyMode === 'USD' ? `$${amt.toFixed(2)}` : `${(amt * 10).toFixed(2)} FBET`}
                   </span>
                   <span className="text-[8px] opacity-80 hidden xs:inline font-semibold">
                     {amt === 0.20 ? "Standard" : "Priority"}

@@ -3,6 +3,7 @@ import { LogOut, Home } from 'lucide-react';
 import { VideoProvider, API_URL } from '@/utils/constants';
 import { capturePlayerFrame } from '@/services/videoCapture';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface DuelModuleProps {
   currentPeerId?: string;
@@ -41,12 +42,7 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
-  const [potInUSD, setPotInUSD] = useState<boolean>(false);
-
-  const formatPot = (usdStr: string) => {
-    const num = parseFloat(usdStr.replace(/,/g, '')) || 2446.95;
-    return potInUSD ? `$${usdStr}` : `${(num * 10).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} $FBET`;
-  };
+  const { currencyMode, toggleCurrencyMode, formatPot } = useCurrency();
 
   // Target Words Overlay State
   const [rolloverPotUSD, setRolloverPotUSD] = useState<string>("2,446.95");
@@ -370,9 +366,9 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
 
             {/* Jackpot Rollover Pot Display */}
             <div 
-              onClick={() => setPotInUSD(!potInUSD)}
+              onClick={toggleCurrencyMode}
               className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0 cursor-pointer transition hover:scale-105"
-              title="Click to switch between $FBET and USD equivalent"
+              title="Global Display Preference: Switch between $FBET and USD equivalent"
             >
               <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
               <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
@@ -476,9 +472,9 @@ export const DuelModule: React.FC<DuelModuleProps> = ({
 
             {/* Jackpot Rollover Pot Display */}
             <div 
-              onClick={() => setPotInUSD(!potInUSD)}
+              onClick={toggleCurrencyMode}
               className="flex items-center gap-1 sm:gap-1.5 bg-black/70 border border-amber-400/50 px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg shrink-0 cursor-pointer transition hover:scale-105"
-              title="Click to switch between $FBET and USD equivalent"
+              title="Global Display Preference: Switch between $FBET and USD equivalent"
             >
               <span className="text-[9px] sm:text-[11px] text-gray-300 font-black tracking-wider uppercase leading-none">POT</span>
               <span className="text-[11px] sm:text-xs font-black text-amber-400 leading-none">{formatPot(rolloverPotUSD)}</span>
