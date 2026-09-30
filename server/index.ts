@@ -38,7 +38,7 @@ process.on("uncaughtException", (err: any) => {
   console.warn("Server uncaught exception captured:", err);
 });
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   process.env.MONGO_URI ||
