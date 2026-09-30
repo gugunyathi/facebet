@@ -118,10 +118,20 @@ export const evaluateLiveFrame = async (
   }
 };
 
+export interface PlayerFilterMod {
+  filterName?: string | null;
+  emoji?: string | null;
+  boost: number;        // 0..0.2 typical
+  keywords: string[];   // e.g. ['ROYAL','KING']
+  themeMatch?: boolean; // true when filter category matches active theme
+}
+
 export const evaluateDuelMatchWinner = async (
   p1FrameBase64: string,
   p2FrameBase64: string,
-  currentTrend: string
+  currentTrend: string,
+  p1Mod: PlayerFilterMod = { boost: 0, keywords: [] },
+  p2Mod: PlayerFilterMod = { boost: 0, keywords: [] },
 ) => {
   try {
     let cleanP1 = p1FrameBase64 || "";
@@ -132,12 +142,26 @@ export const evaluateDuelMatchWinner = async (
     if (!cleanP1 || cleanP1.length < 10) cleanP1 = FALLBACK_JPEG_BASE64;
     if (!cleanP2 || cleanP2.length < 10) cleanP2 = FALLBACK_JPEG_BASE64;
 
+    const describeMod = (label: string, m: PlayerFilterMod) => {
+      if (!m || (m.boost <= 0 && (!m.keywords || m.keywords.length === 0))) {
+        return `${label}: No cosmetic filter equipped.`;
+      }
+      const bonus = Math.round(m.boost * 100);
+      const kw = (m.keywords || []).join(', ');
+      const match = m.themeMatch ? ' — ON-THEME (double boost applied).' : '.';
+      return `${label} is wearing "${m.filterName || 'a filter'}" ${m.emoji || ''} — award a +${bonus}% bias toward this player and treat these expression keywords as bonus criteria fulfilled: [${kw}]${match}`;
+    };
+
+    // Bias resolution when both players' Gemini output is near-tie: apply mods.
+    // We provide the modifiers directly to the model as scoring hints.
+
     if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY environment variable is not set. Applying autonomous fallback verdict.");
-      const chosenWinner = Math.random() > 0.5 ? 1 : 2;
+      console.warn("GEMINI_API_KEY environment variable is not set. Applying autonomous fallback verdict with mods.");
+      const r = Math.random() + (p1Mod.boost - p2Mod.boost);
+      const chosenWinner = r > 0.5 ? 1 : 2;
       return {
         winner: chosenWinner,
-        reason: `Player ${chosenWinner} exhibited superior facial symmetry and alignment with active trend: "${currentTrend}".`
+        reason: `Player ${chosenWinner} exhibited superior facial symmetry and alignment with active trend: "${currentTrend}" (mod bias applied).`
       };
     }
 
@@ -149,10 +173,15 @@ export const evaluateDuelMatchWinner = async (
         {
           text: `You are the master referee for the Web3 gaming arena "FACE BET". 
           The active target theme criteria both players are attempting to express is: "${currentTrend}".
-          
+
           Input 1 is the camera frame for Player 1. Input 2 is the camera frame for Player 2.
-          Compare both expressions, environmental highlights, and emotional outputs against the trend. 
-          Determine who won. Return a strict JSON response match: { "winner": 1 or 2, "reason": "1 clear sentence explaining why." }`
+
+          COSMETIC FILTER MODIFIERS (must factor into your scoring):
+          - ${describeMod('Player 1', p1Mod)}
+          - ${describeMod('Player 2', p2Mod)}
+
+          Evaluate raw facial expression, environment, and vibe alignment against the trend, then apply the cosmetic modifier bias as a tiebreaker (and as bonus theme keywords when they match).
+          Return a strict JSON response: { "winner": 1 or 2, "reason": "1 clear sentence explaining why (mention if filter mod tipped the scale)." }`
         }
       ],
       config: {
@@ -160,7 +189,7 @@ export const evaluateDuelMatchWinner = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            winner: { type: Type.INTEGER, description: 'Must be explicitly 1 or 2 depending on who best captured the trend.' },
+            winner: { type: Type.INTEGER, description: 'Must be explicitly 1 or 2 depending on who best captured the trend after applying filter mods.' },
             reason: { type: Type.STRING, description: 'Analytical breakdown explaining the win decision matrix parameters.' }
           },
           required: ['winner', 'reason']
@@ -171,7 +200,9 @@ export const evaluateDuelMatchWinner = async (
     return JSON.parse(response.text || '{}');
   } catch (err) {
     console.error("Gemini Multi-frame evaluation error:", err);
-    return { winner: 1, reason: "Fallback default evaluation resolution applied." };
+    const r = Math.random() + (p1Mod.boost - p2Mod.boost);
+    const chosenWinner = r > 0.5 ? 1 : 2;
+    return { winner: chosenWinner, reason: `Fallback resolution: Player ${chosenWinner} favored by filter bias.` };
   }
 };
 

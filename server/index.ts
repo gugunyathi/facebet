@@ -25,6 +25,16 @@ import { TicketQueue } from "./models/TicketQueue";
 import { PaymentLedger, DuelRoom, inMemoryPaymentLedger, inMemoryDuelRooms } from "./models/FinancialAndDuelModels";
 import { QueueWorker, inMemoryTickets } from "./services/queueWorker";
 import { startCompositeCronScheduler, currentGlobalAITrend } from "./services/compositeGenerator";
+import {
+  FILTER_CATALOG,
+  getFilterById,
+  computeFilterBoost,
+  getOrCreateInventory,
+  saveInventory,
+  evaluateStreak,
+  dailyClaimReward,
+  DAILY_STREAK_MAX,
+} from "./services/storeCatalog";
 
 process.on("unhandledRejection", (reason) => {
   console.warn("Server unhandled rejection captured:", reason);
@@ -1586,28 +1596,80 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
   // POST /api/evaluate-duel — dual camera frame AI evaluation endpoint
   app.post("/api/evaluate-duel", async (req: Request, res: Response) => {
     try {
-      const { p1Frame, p2Frame, p1Wallet, p2Wallet } = req.body || {};
+      const { p1Frame, p2Frame, p1Wallet, p2Wallet, p1PeerId, p2PeerId, roomId, network: bodyNetwork } = req.body || {};
 
       const activeTrend = currentGlobalAITrend || "Cyberpunk style, ultra-shock expression matrix matching dynamic neon background environments.";
 
+      // ─── Filter Boost Wiring ────────────────────────────────────────────────
+      // Look up each player's inventory & compute boost/keywords for the Gemini prompt.
+      const themeCategoryMatch = (activeTrend || '').toUpperCase();
+      const detectThemeCategory = (): 'expressions' | 'hats' | 'halloween' | 'xmas' | 'masks' | null => {
+        if (/(SPOOKY|GHOST|PUMPKIN|WITCH|HALLOWEEN)/.test(themeCategoryMatch)) return 'halloween';
+        if (/(SANTA|FESTIVE|XMAS|REINDEER|SNOW)/.test(themeCategoryMatch)) return 'xmas';
+        if (/(ROYAL|CROWN|KING|HAT|COWBOY|GENTLEMAN)/.test(themeCategoryMatch)) return 'hats';
+        if (/(MASK|STEALTH|NINJA|CYBER|NEON|DISGUISE)/.test(themeCategoryMatch)) return 'masks';
+        if (/(SHOCK|GRIN|WIDE-EYED|HYPE|STARSTRUCK|UNHINGED)/.test(themeCategoryMatch)) return 'expressions';
+        return null;
+      };
+      const themeCategory = detectThemeCategory();
+
+      const resolvePlayerMod = async (peerId?: string | null) => {
+        if (!peerId) return { boost: 0, keywords: [] as string[] };
+        try {
+          const inv = await getOrCreateInventory(peerId, isMongoConnected);
+          const f = getFilterById(inv.equipped);
+          if (!f) return { boost: 0, keywords: [] as string[] };
+          const boost = computeFilterBoost(inv.equipped, themeCategory);
+          return {
+            filterName: f.name,
+            emoji: f.emoji,
+            boost,
+            keywords: f.keywords,
+            themeMatch: !!(themeCategory && f.category === themeCategory),
+          };
+        } catch {
+          return { boost: 0, keywords: [] as string[] };
+        }
+      };
+
+      const [p1Mod, p2Mod] = await Promise.all([resolvePlayerMod(p1PeerId), resolvePlayerMod(p2PeerId)]);
+
       let verdict = { winner: 1, reason: "Gemini AI evaluated Player 1 facial expression as 100% Web3 compliant." };
       try {
-        verdict = await evaluateDuelMatchWinner(p1Frame, p2Frame, activeTrend);
+        verdict = await evaluateDuelMatchWinner(p1Frame, p2Frame, activeTrend, p1Mod as any, p2Mod as any);
       } catch (geminiErr: any) {
         console.warn("Gemini duel evaluation notice, applying fallback verdict:", geminiErr?.message || geminiErr);
+        const r = Math.random() + ((p1Mod.boost || 0) - (p2Mod.boost || 0));
         verdict = {
-          winner: Math.random() > 0.5 ? 1 : 2,
-          reason: "Gemini AI evaluated camera stream facial symmetry and high Web3 expression alignment."
+          winner: r > 0.5 ? 1 : 2,
+          reason: "Fallback verdict applied (Gemini unavailable); filter modifiers biased the outcome."
         };
       }
 
       const winningWallet = verdict.winner === 1 ? (p1Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F") : (p2Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+      const winningPeerId = verdict.winner === 1 ? p1PeerId : p2PeerId;
       console.log(`🏆 Duel Winner Declared: Player ${verdict.winner} (${winningWallet}). Reason: ${verdict.reason}`);
 
-      // Dispatch Base L2 On-Chain Payout Bridge Transaction
+      // ─── Payout Activation ─────────────────────────────────────────────────
+      // Resolve network from body → winner's session → default base.
+      let payoutNetwork: string | undefined = bodyNetwork;
+      if (!payoutNetwork && winningPeerId && isMongoConnected) {
+        try {
+          const winSession = await (UserSession as any).findOne({ peerId: winningPeerId });
+          if (winSession?.network && winSession.network !== 'none') payoutNetwork = winSession.network;
+        } catch {}
+      }
+
       let txHash = "";
+      let payoutMode: 'onchain' | 'fallback' = 'fallback';
       try {
-        txHash = await ContractBridge.executeOnChainPayout(winningWallet, verdict.reason);
+        // Prefer duel-specific settlement when we have a roomId (locked stake).
+        if (roomId) {
+          txHash = await ContractBridge.executeDuelPayout(String(roomId), winningWallet, verdict.reason, payoutNetwork);
+        } else {
+          txHash = await ContractBridge.executeOnChainPayout(winningWallet, verdict.reason, payoutNetwork);
+        }
+        payoutMode = txHash.startsWith('0x_') ? 'fallback' : 'onchain';
       } catch (txErr: any) {
         console.warn("ContractBridge execution notice:", txErr?.message || txErr);
       }
@@ -1749,7 +1811,11 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
         winner: verdict.winner,
         wallet: winningWallet,
         reason: verdict.reason,
-        txHash: txHash || `0xbase_${Date.now()}`
+        txHash: txHash || `0xbase_${Date.now()}`,
+        payoutMode,
+        network: payoutNetwork || 'base',
+        p1Mod: { boost: p1Mod.boost || 0, keywords: (p1Mod as any).keywords || [], themeMatch: (p1Mod as any).themeMatch || false },
+        p2Mod: { boost: p2Mod.boost || 0, keywords: (p2Mod as any).keywords || [], themeMatch: (p2Mod as any).themeMatch || false },
       });
     } catch (error: any) {
       console.error("Evaluate duel server error:", error);
@@ -1812,6 +1878,137 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ─── FILTER STORE API ─────────────────────────────────────────────────────
+
+  // GET /api/store/catalog — list purchasable filters
+  app.get("/api/store/catalog", (_req: Request, res: Response) => {
+    return res.json({ success: true, filters: FILTER_CATALOG });
+  });
+
+  // GET /api/store/inventory/:peerId — user's owned + equipped + daily streak
+  app.get("/api/store/inventory/:peerId", async (req: Request, res: Response) => {
+    try {
+      const { peerId } = req.params;
+      if (!peerId) return res.status(400).json({ error: "peerId required" });
+      const inv = await getOrCreateInventory(peerId, isMongoConnected);
+      const streak = evaluateStreak(inv.lastDailyAt);
+      return res.json({
+        success: true,
+        inventory: {
+          owned: inv.owned,
+          equipped: inv.equipped,
+          dailyStreak: inv.dailyStreak,
+          lastDailyAt: inv.lastDailyAt,
+          dailyClaimEligible: streak.eligible,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/store/buy — deduct tickets, add filter to inventory
+  app.post("/api/store/buy", async (req: Request, res: Response) => {
+    try {
+      const { peerId, filterId } = req.body || {};
+      if (!peerId || !filterId) return res.status(400).json({ error: "peerId and filterId required" });
+      const filter = getFilterById(filterId);
+      if (!filter) return res.status(404).json({ error: "Filter not found" });
+
+      // Ticket balance check + deduct
+      let remainingTickets = 0;
+      if (isMongoConnected) {
+        try {
+          const session = await (UserSession as any).findOneAndUpdate(
+            { peerId, availableTickets: { $gte: filter.price } },
+            { $inc: { availableTickets: -filter.price } },
+            { new: true },
+          );
+          if (!session) return res.status(400).json({ error: "Insufficient tickets" });
+          remainingTickets = session.availableTickets;
+        } catch (dbErr: any) {
+          return res.status(500).json({ error: dbErr.message });
+        }
+      } else {
+        return res.status(503).json({ error: "Database unavailable" });
+      }
+
+      const inv = await getOrCreateInventory(peerId, isMongoConnected);
+      if (!inv.owned.includes(filterId)) inv.owned.push(filterId);
+      await saveInventory(inv, isMongoConnected);
+      return res.json({ success: true, inventory: inv, remainingTickets });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/store/equip — equip an owned filter (or null to unequip)
+  app.post("/api/store/equip", async (req: Request, res: Response) => {
+    try {
+      const { peerId, filterId } = req.body || {};
+      if (!peerId) return res.status(400).json({ error: "peerId required" });
+      const inv = await getOrCreateInventory(peerId, isMongoConnected);
+      if (filterId && !inv.owned.includes(filterId)) return res.status(400).json({ error: "Filter not owned" });
+      inv.equipped = filterId || null;
+      await saveInventory(inv, isMongoConnected);
+      return res.json({ success: true, inventory: inv });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/store/claim-daily — daily ticket claim with growing streak bonus
+  app.post("/api/store/claim-daily", async (req: Request, res: Response) => {
+    try {
+      const { peerId } = req.body || {};
+      if (!peerId) return res.status(400).json({ error: "peerId required" });
+      const inv = await getOrCreateInventory(peerId, isMongoConnected);
+
+      const streakEval = evaluateStreak(inv.lastDailyAt);
+      if (!streakEval.eligible) {
+        return res.status(400).json({ error: "Daily reward already claimed today", nextEligibleAt: 'tomorrow' });
+      }
+
+      // Update streak: reset to 1, increment, or set to 1 on missed day.
+      let newStreak: number;
+      if (streakEval.nextStreak === 1) newStreak = 1;
+      else newStreak = Math.min((inv.dailyStreak || 0) + 1, DAILY_STREAK_MAX);
+
+      const reward = dailyClaimReward(newStreak);
+      inv.dailyStreak = newStreak;
+      inv.lastDailyAt = new Date();
+      await saveInventory(inv, isMongoConnected);
+
+      // Credit tickets to user session
+      let totalTickets = 0;
+      if (isMongoConnected) {
+        try {
+          const session = await (UserSession as any).findOneAndUpdate(
+            { peerId },
+            {
+              $inc: { availableTickets: reward.tickets },
+              $setOnInsert: { peerId, walletAddress: null, network: 'none', createdAt: new Date() },
+            },
+            { upsert: true, new: true },
+          );
+          totalTickets = session.availableTickets;
+        } catch (dbErr: any) {
+          return res.status(500).json({ error: dbErr.message });
+        }
+      }
+
+      return res.json({
+        success: true,
+        ticketsAwarded: reward.tickets,
+        dailyStreak: newStreak,
+        maxStreak: DAILY_STREAK_MAX,
+        totalTickets,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   });
 
