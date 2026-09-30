@@ -29,3 +29,8 @@ dist-ssr
 .vercel
 artifacts/
 cache/
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
