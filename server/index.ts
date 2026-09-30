@@ -3,6 +3,7 @@ import http from "http";
 import path from "path";
 import crypto from "crypto";
 import cors from "cors";
+import { AccessToken } from "livekit-server-sdk";
 
 try {
   if (typeof (process as any).loadEnvFile === "function") {
@@ -1886,6 +1887,53 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ─── LIVEKIT TOKEN API ───────────────────────────────────────────────────
+  // GET /api/livekit/token?room=room_123&identity=peer_456
+  app.get("/api/livekit/token", async (req: Request, res: Response) => {
+    try {
+      const room = (req.query.room as string) || "arena_global";
+      const identity = (req.query.identity as string) || `user_${Math.random().toString(36).slice(2, 8)}`;
+      const name = (req.query.name as string) || identity;
+
+      const apiKey = process.env.LIVEKIT_API_KEY;
+      const apiSecret = process.env.LIVEKIT_API_SECRET;
+      const serverUrl = process.env.LIVEKIT_URL || process.env.VITE_LIVEKIT_URL || "wss://facebet-livekit.livekit.cloud";
+
+      if (!apiKey || !apiSecret) {
+        return res.json({
+          success: false,
+          error: "LIVEKIT_API_KEY or LIVEKIT_API_SECRET environment variable is missing",
+          fallbackToPeerJS: true,
+        });
+      }
+
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity,
+        name,
+        ttl: '1d',
+      });
+
+      at.addGrant({
+        roomJoin: true,
+        room,
+        canPublish: true,
+        canSubscribe: true,
+      });
+
+      const token = await at.toJwt();
+      return res.json({
+        success: true,
+        token,
+        serverUrl,
+        room,
+        identity,
+      });
+    } catch (err: any) {
+      console.error("LiveKit token generation error:", err);
+      return res.status(500).json({ error: err.message });
     }
   });
 

@@ -5,6 +5,7 @@ import { VideoProvider, API_URL, WS_URL, peer as globalPeer, getBrowserClientId 
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 import { useCurrency } from '@/context/CurrencyContext';
 import { FilterStoreModal, FaceFilter } from '@/components/FilterStoreModal';
+import { connectToLiveKitRoom, LiveKitSession } from '@/services/livekitClient';
 
 interface P2PArenaProps {
   currentPeerId?: string;
@@ -228,6 +229,7 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const activeCallRef = useRef<any>(null); // Tracks current PeerJS call to prevent duplicates
   // Map<peerId, PeerJS MediaConnection> for all outbound spectator broadcast calls
   const spectatorCallsRef = useRef<Map<string, any>>(new Map());
+  const livekitSessionRef = useRef<LiveKitSession | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Dynamic rotational stream mapping helper: maps streams based on myRole and current match state
@@ -300,6 +302,36 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
       }
     }
   }, [myRole, videoContext?.remoteMediaStream, videoContext?.mediaStream, isDualTestMode, gameMode]);
+
+  // LiveKit Production Stream Wiring
+  useEffect(() => {
+    if (matchStatus === 'LIVE' && currentPeerId) {
+      const activeRoomId = `arena_room_${arenaState.matchCounter || 1}`;
+      connectToLiveKitRoom(
+        activeRoomId,
+        currentPeerId,
+        (element) => {
+          if (element instanceof HTMLVideoElement) {
+            if (myRole === 'PLAYER_1' && p2VideoRef.current) {
+              p2VideoRef.current.srcObject = element.srcObject;
+            } else if (myRole === 'PLAYER_2' && p1VideoRef.current) {
+              p1VideoRef.current.srcObject = element.srcObject;
+            }
+          }
+        },
+        () => console.log("LiveKit room session ended")
+      ).then((session) => {
+        if (session) livekitSessionRef.current = session;
+      });
+    }
+
+    return () => {
+      if (livekitSessionRef.current) {
+        livekitSessionRef.current.disconnect();
+        livekitSessionRef.current = null;
+      }
+    };
+  }, [matchStatus, currentPeerId, myRole, arenaState.matchCounter]);
 
   // Enumerate video input devices on mount (if props not provided)
   useEffect(() => {
