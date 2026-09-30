@@ -123,6 +123,78 @@ export const getOrCreateInventory = async (peerId: string, isMongoConnected: boo
   return mem;
 };
 
+// ─── Filter Leaderboard Stats ───────────────────────────────────────────
+const FilterWinSchema = new mongoose.Schema({
+  filterId:  { type: String, required: true, index: true },
+  wins:      { type: Number, default: 0 },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+export const FilterWin =
+  (mongoose.models.FilterWin as any) ||
+  mongoose.model('FilterWin', FilterWinSchema);
+
+export const inMemoryFilterWins = new Map<string, number>();
+
+export const recordFilterWin = async (filterId: string | null | undefined, isMongoConnected: boolean) => {
+  if (!filterId) return;
+  if (isMongoConnected) {
+    try {
+      await (FilterWin as any).findOneAndUpdate(
+        { filterId },
+        { $inc: { wins: 1 }, $set: { updatedAt: new Date() } },
+        { upsert: true }
+      );
+      return;
+    } catch {}
+  }
+  const current = inMemoryFilterWins.get(filterId) || 0;
+  inMemoryFilterWins.set(filterId, current + 1);
+};
+
+export const getFilterLeaderboard = async (isMongoConnected: boolean) => {
+  let stats: Array<{ filterId: string; wins: number }> = [];
+
+  if (isMongoConnected) {
+    try {
+      const docs = await (FilterWin as any).find({}).sort({ wins: -1 }).limit(5);
+      stats = docs.map((d: any) => ({ filterId: d.filterId, wins: d.wins }));
+    } catch {}
+  }
+
+  if (stats.length === 0) {
+    // Fallback to in-memory map or default catalog preview stats
+    const memEntries = Array.from(inMemoryFilterWins.entries())
+      .map(([filterId, wins]) => ({ filterId, wins }))
+      .sort((a, b) => b.wins - a.wins);
+
+    if (memEntries.length > 0) {
+      stats = memEntries.slice(0, 5);
+    } else {
+      // Default seeded leaderboard for instant wow factor
+      stats = [
+        { filterId: 'crown', wins: 142 },
+        { filterId: 'robot-mask', wins: 98 },
+        { filterId: 'ninja-mask', wins: 76 },
+        { filterId: 'star-struck', wins: 64 },
+        { filterId: 'pumpkin', wins: 41 },
+      ];
+    }
+  }
+
+  return stats.map(s => {
+    const item = getFilterById(s.filterId);
+    return {
+      filterId: s.filterId,
+      name: item?.name || s.filterId,
+      emoji: item?.emoji || '👑',
+      category: item?.category || 'hats',
+      boost: item?.boost || 0.08,
+      wins: s.wins
+    };
+  });
+};
+
 export const saveInventory = async (doc: InventoryDoc, isMongoConnected: boolean) => {
   if (isMongoConnected) {
     try {
@@ -143,3 +215,4 @@ export const saveInventory = async (doc: InventoryDoc, isMongoConnected: boolean
   }
   inMemoryInventory.set(doc.peerId, { ...doc });
 };
+

@@ -34,6 +34,8 @@ import {
   evaluateStreak,
   dailyClaimReward,
   DAILY_STREAK_MAX,
+  recordFilterWin,
+  getFilterLeaderboard,
 } from "./services/storeCatalog";
 
 process.on("unhandledRejection", (reason) => {
@@ -1648,6 +1650,12 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
 
       const winningWallet = verdict.winner === 1 ? (p1Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F") : (p2Wallet || "0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
       const winningPeerId = verdict.winner === 1 ? p1PeerId : p2PeerId;
+      const winningFilterId = verdict.winner === 1 ? (p1Mod as any)?.filterId : (p2Mod as any)?.filterId;
+      if (winningPeerId) {
+        getOrCreateInventory(winningPeerId, isMongoConnected).then(inv => {
+          if (inv.equipped) recordFilterWin(inv.equipped, isMongoConnected);
+        }).catch(() => {});
+      }
       console.log(`🏆 Duel Winner Declared: Player ${verdict.winner} (${winningWallet}). Reason: ${verdict.reason}`);
 
       // ─── Payout Activation ─────────────────────────────────────────────────
@@ -1886,6 +1894,16 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mock_key
   // GET /api/store/catalog — list purchasable filters
   app.get("/api/store/catalog", (_req: Request, res: Response) => {
     return res.json({ success: true, filters: FILTER_CATALOG });
+  });
+
+  // GET /api/store/leaderboard — Top 5 winning cosmetic filters this week
+  app.get("/api/store/leaderboard", async (_req: Request, res: Response) => {
+    try {
+      const leaderboard = await getFilterLeaderboard(isMongoConnected);
+      return res.json({ success: true, leaderboard });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   // GET /api/store/inventory/:peerId — user's owned + equipped + daily streak

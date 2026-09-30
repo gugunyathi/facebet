@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut, Home } from 'lucide-react';
+import { Crown, Swords, Users, Mic, MicOff, Maximize2, Minimize2, Columns, LayoutGrid, X, LogOut, Home, ShoppingBag, Sparkles } from 'lucide-react';
 import { VideoProvider, API_URL, WS_URL, peer as globalPeer, getBrowserClientId } from '@/utils/constants';
 import { parseExpressionKeywords } from '@/components/TrendTicker';
 import { useCurrency } from '@/context/CurrencyContext';
+import { FilterStoreModal, FaceFilter } from '@/components/FilterStoreModal';
 
 interface P2PArenaProps {
   currentPeerId?: string;
@@ -93,6 +94,9 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [hasRemoteStream, setHasRemoteStream] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isStoreOpen, setIsStoreOpen] = useState<boolean>(false);
+  const [equippedFilter, setEquippedFilter] = useState<FaceFilter | null>(null);
+  const [userTickets, setUserTickets] = useState<number>(10);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [areControlsVisible, setAreControlsVisible] = useState<boolean>(true);
   const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1242,6 +1246,19 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               </div>
 
               <video id="p1DuelView" ref={p1VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_1' || isMuted} className="w-full h-full object-cover block transform scale-x-[-1]" />
+
+              {/* Cosmetic Face Filter Overlay for Player 1 */}
+              {equippedFilter && (myRole === 'PLAYER_1' || isDualTestMode) && (
+                <div className={`absolute z-20 pointer-events-none select-none transition-all duration-300 ${
+                  equippedFilter.placement === 'top'
+                    ? 'top-4 inset-x-0 flex justify-center text-6xl sm:text-7xl filter drop-shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-bounce'
+                    : equippedFilter.placement === 'eyes'
+                    ? 'top-1/3 inset-x-0 flex justify-center text-5xl sm:text-6xl filter drop-shadow-[0_0_20px_rgba(236,72,153,0.9)] animate-pulse'
+                    : 'inset-0 flex items-center justify-center text-7xl sm:text-8xl filter drop-shadow-[0_0_25px_rgba(59,130,246,0.9)] animate-pulse opacity-90'
+                }`}>
+                  <span>{equippedFilter.emoji}</span>
+                </div>
+              )}
               
               {(myRole !== 'PLAYER_1' && !hasRemoteStream && !isDualTestMode) && (
                 <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-zinc-950 text-center absolute inset-0 z-10 pt-12">
@@ -1345,6 +1362,23 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
                 </button>
 
                 <button
+                  onClick={() => setIsStoreOpen(true)}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
+                    equippedFilter
+                      ? "bg-gradient-to-tr from-amber-500 to-yellow-400 border-amber-300 text-black shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse"
+                      : "bg-gradient-to-tr from-cyan-600/90 to-indigo-600/90 border-cyan-400/50 hover:from-cyan-500 hover:to-indigo-500 text-white"
+                  }`}
+                  title="Open Cosmetic Filter Store & Leaderboard"
+                  aria-label="Filter Store"
+                >
+                  {equippedFilter ? (
+                    <span className="text-sm select-none">{equippedFilter.emoji}</span>
+                  ) : (
+                    <ShoppingBag size={15} />
+                  )}
+                </button>
+
+                <button
                   onClick={() => setIsSidebarOpen(prev => !prev)}
                   className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-lg shrink-0 ${
                     isSidebarOpen
@@ -1398,6 +1432,19 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
               </div>
 
               <video id="p2DuelView" ref={p2VideoRef} autoPlay playsInline muted={myRole === 'PLAYER_2' || isMuted} className="w-full h-full object-cover block transform scale-x-[-1]" />
+
+              {/* Cosmetic Face Filter Overlay for Player 2 */}
+              {equippedFilter && (myRole === 'PLAYER_2' || isDualTestMode) && (
+                <div className={`absolute z-20 pointer-events-none select-none transition-all duration-300 ${
+                  equippedFilter.placement === 'top'
+                    ? 'top-4 inset-x-0 flex justify-center text-6xl sm:text-7xl filter drop-shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-bounce'
+                    : equippedFilter.placement === 'eyes'
+                    ? 'top-1/3 inset-x-0 flex justify-center text-5xl sm:text-6xl filter drop-shadow-[0_0_20px_rgba(236,72,153,0.9)] animate-pulse'
+                    : 'inset-0 flex items-center justify-center text-7xl sm:text-8xl filter drop-shadow-[0_0_25px_rgba(59,130,246,0.9)] animate-pulse opacity-90'
+                }`}>
+                  <span>{equippedFilter.emoji}</span>
+                </div>
+              )}
               
               {(!hasRemoteStream && !isDualTestMode && myRole !== 'PLAYER_2') && (
                 <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-zinc-950 text-center absolute inset-0 z-10">
@@ -1869,6 +1916,16 @@ export const P2PArena: React.FC<P2PArenaProps> = ({
         </div>
 
       </div>
+
+      {/* Filter Store & Leaderboard Modal */}
+      <FilterStoreModal
+        isOpen={isStoreOpen}
+        onClose={() => setIsStoreOpen(false)}
+        peerId={currentPeerId}
+        userTickets={userTickets}
+        onTicketsUpdated={(newTickets) => setUserTickets(newTickets)}
+        onEquippedFilterChanged={(filter) => setEquippedFilter(filter)}
+      />
 
     </div>
   );
