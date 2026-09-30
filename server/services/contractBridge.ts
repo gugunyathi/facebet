@@ -26,6 +26,34 @@ export const getContractAddress = (network: SupportedNetwork = 'base'): string =
   }
 };
 
+// $FBET ERC-20 token addresses per network
+export const getFbetTokenAddress = (network: SupportedNetwork = 'base'): string => {
+  switch (network) {
+    case 'base':
+    case 'base-sepolia':
+      return process.env.FBET_TOKEN_ADDRESS_BASE || "";
+    case 'arc':
+    case 'arc-testnet':
+      return process.env.FBET_TOKEN_ADDRESS_ARC || "";
+    default:
+      return "";
+  }
+};
+
+// $FBET-denominated Escrow addresses per network
+export const getFbetEscrowAddress = (network: SupportedNetwork = 'base'): string => {
+  switch (network) {
+    case 'base':
+    case 'base-sepolia':
+      return process.env.FBET_ESCROW_ADDRESS_BASE || "";
+    case 'arc':
+    case 'arc-testnet':
+      return process.env.FBET_ESCROW_ADDRESS_ARC || "";
+    default:
+      return "";
+  }
+};
+
 // ─── ARC Network Chain Definitions ───────────────────────────────────────────
 const arcMainnet = {
   id: 5042,
